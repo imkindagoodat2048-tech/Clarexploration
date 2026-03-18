@@ -5,100 +5,91 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ClarePlatformer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;600;800;900&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 <style>
 :root{
-  --bg:#0a0a14;--panel:#12121f;--primary:#4834d4;--accent:#e8ff00;
+  --bg:#0f0f1a;--panel:#1a1a2d;--primary:#4834d4;--accent:#e8ff00;
   --danger:#eb4d4b;--green:#2ed573;--text:#fff;--muted:#555577;--border:#2a2a44;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+button,input,select{font-family:'DM Sans',sans-serif;}
+
 #login-screen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:var(--bg);}
-.login-box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:28px 24px;width:260px;text-align:center;}
-.login-title{font-family:'Inter',sans-serif;font-size:20px;font-weight:900;letter-spacing:1px;color:var(--accent);margin-bottom:20px;}
-.login-sub{display:none;}
-.login-box input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:6px;font-family:'Inter',sans-serif;font-size:12px;outline:none;margin-bottom:8px;transition:border-color .15s;}
+.login-box{background:var(--panel);border:1px solid var(--primary);border-radius:15px;padding:30px 24px;width:280px;text-align:center;}
+.login-title{font-family:'Bebas Neue',cursive;font-size:28px;letter-spacing:4px;color:var(--accent);margin-bottom:20px;}
+.login-box input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;outline:none;margin-bottom:8px;transition:border-color .15s;}
 .login-box input:focus{border-color:var(--primary);}
-.login-btn{width:100%;padding:10px;background:var(--primary);border:none;border-radius:6px;color:white;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;letter-spacing:0;cursor:pointer;margin-top:6px;transition:opacity .15s;}
+.login-btn{width:100%;padding:12px;background:var(--primary);border:none;border-radius:8px;color:white;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px;transition:opacity .15s;}
 .login-btn:hover{opacity:.88;}
-.login-toggle{color:var(--muted);font-size:11px;margin-top:12px;cursor:pointer;}
+.login-toggle{color:var(--muted);font-size:11px;margin-top:12px;cursor:pointer;font-family:'Space Mono',monospace;}
 .login-toggle:hover{color:var(--text);}
-.login-error{color:var(--danger);font-size:11px;min-height:14px;margin-top:5px;}
+.login-error{color:var(--danger);font-size:11px;min-height:14px;margin-top:5px;font-family:'Space Mono',monospace;}
+
 #game-wrapper{width:100vw;height:100vh;display:none;flex-direction:column;position:relative;}
-#hud{position:absolute;top:0;left:0;right:0;height:44px;background:rgba(10,10,20,.96);border-bottom:2px solid var(--primary);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:50;}
-.hud-title{font-family:'Inter',sans-serif;font-size:16px;font-weight:800;letter-spacing:1px;color:var(--accent);}
+#hud{position:absolute;top:0;left:0;right:0;height:44px;background:rgba(26,26,45,0.97);border-bottom:2px solid var(--primary);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:50;}
+.hud-title{font-family:'Bebas Neue',cursive;font-size:20px;letter-spacing:3px;color:var(--accent);}
 .hud-sep{color:var(--border);}
-.hud-info{font-size:11px;color:var(--muted);}
+.hud-info{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;}
 .hud-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);flex-shrink:0;}
-#hud-time{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:0;margin-left:auto;}
-.hud-exit{background:#2a2a3a;border:none;color:#888;padding:3px 12px;border-radius:4px;cursor:pointer;font-family:'Inter',sans-serif;font-size:11px;margin-left:8px;}
+#hud-time{font-family:'Bebas Neue',cursive;font-size:16px;letter-spacing:2px;margin-left:auto;color:var(--accent);}
+.hud-exit{background:#2f3542;border:none;color:#aaa;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:600;margin-left:8px;}
 .hud-exit:hover{color:white;}
 #game-canvas{position:absolute;top:44px;left:0;width:100%;height:calc(100vh - 44px);display:block;}
-#hotbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:50;background:rgba(10,10,20,.9);border:1px solid var(--border);border-radius:8px;padding:6px;}
+
+#hotbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:50;background:rgba(26,26,45,0.95);border:1px solid var(--border);border-radius:8px;padding:6px;}
 .hb-slot{width:48px;height:48px;background:var(--bg);border:2px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:border-color .1s;}
-.hb-slot.active{border-color:var(--accent);box-shadow:0 0 8px rgba(232,255,0,.4);}
-.hb-slot .slot-count{position:absolute;bottom:2px;right:4px;font-size:9px;font-weight:800;color:var(--accent);}
+.hb-slot.active{border-color:var(--accent);box-shadow:0 0 8px rgba(232,255,0,.35);}
+.hb-slot .slot-count{position:absolute;bottom:2px;right:4px;font-size:9px;font-weight:800;color:var(--accent);font-family:'Space Mono',monospace;}
 .hb-slot .slot-icon{font-size:20px;line-height:1;}
 
-/* Overlay panels */
-.game-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--primary);border-radius:12px;padding:22px;z-index:80;min-width:320px;box-shadow:0 0 40px rgba(72,52,212,.35);}
-.overlay-title{font-family:'Inter',sans-serif;font-size:18px;font-weight:800;letter-spacing:0;color:var(--accent);margin-bottom:14px;}
+.game-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--primary);border-radius:15px;padding:22px;z-index:80;min-width:320px;box-shadow:0 0 40px rgba(72,52,212,.35);}
+.overlay-title{font-family:'Bebas Neue',cursive;font-size:22px;letter-spacing:3px;color:var(--accent);margin-bottom:14px;}
 .overlay-close{float:right;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;margin-top:-4px;}
 .overlay-close:hover{color:white;}
 
-/* Inventory / Crafting grid */
-.inv-grid{display:grid;grid-template-columns:repeat(9,42px);gap:4px;margin-bottom:12px;}
-.inv-slot{width:42px;height:42px;background:var(--bg);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:18px;}
-.inv-slot:hover{border-color:var(--primary);}
-.inv-slot.active-slot{border-color:var(--accent);}
-.inv-slot .cnt{position:absolute;bottom:1px;right:3px;font-size:9px;font-weight:800;color:var(--accent);}
-
-/* Craft list */
 .craft-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;}
+.craft-list::-webkit-scrollbar{width:3px;}
+.craft-list::-webkit-scrollbar-thumb{background:#333;}
 .craft-item{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;cursor:pointer;}
 .craft-item:hover{border-color:var(--primary);}
 .craft-item-name{font-weight:700;font-size:13px;}
-.craft-item-req{font-size:10px;color:var(--muted);margin-top:2px;}
-.craft-btn{background:var(--primary);border:none;color:white;padding:4px 12px;border-radius:4px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;}
+.craft-item-req{font-size:10px;color:var(--muted);margin-top:2px;font-family:'Space Mono',monospace;}
+.craft-btn{background:var(--primary);border:none;color:white;padding:4px 12px;border-radius:4px;cursor:pointer;font-weight:700;font-size:11px;}
 .craft-btn:disabled{background:#333;color:#555;cursor:not-allowed;}
 
-/* Furnace */
 .furnace-slots{display:flex;align-items:center;gap:16px;margin-bottom:14px;}
 .furnace-slot-wrap{text-align:center;}
-.furnace-slot-label{font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+.furnace-slot-label{font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:600;font-family:'Space Mono',monospace;letter-spacing:1px;}
 .furnace-slot{width:52px;height:52px;background:var(--bg);border:2px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:24px;}
 .furnace-slot:hover{border-color:var(--primary);}
 .furnace-arrow{font-size:24px;color:var(--muted);}
 .furnace-progress{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:8px;}
 .furnace-progress-bar{height:100%;background:var(--accent);border-radius:3px;transition:width .5s linear;}
-.smelt-status{font-size:11px;color:var(--muted);margin-top:6px;font-style:italic;}
+.smelt-status{font-size:11px;color:var(--muted);margin-top:6px;font-style:italic;font-family:'Space Mono',monospace;}
 
-/* C-bar quick craft */
-#c-craft-bar{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(10,10,20,.95);border:1px solid var(--primary);border-radius:8px;padding:10px 16px;z-index:60;display:none;min-width:280px;}
-.c-bar-title{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:0;color:var(--accent);margin-bottom:8px;}
+#c-craft-bar{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(26,26,45,0.97);border:1px solid var(--primary);border-radius:8px;padding:10px 16px;z-index:60;display:none;min-width:280px;}
+.c-bar-title{font-family:'Bebas Neue',cursive;font-size:14px;letter-spacing:2px;color:var(--accent);margin-bottom:8px;}
 .c-bar-progress{height:4px;background:var(--border);border-radius:2px;margin-bottom:8px;overflow:hidden;}
 .c-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .05s;}
 
-/* Chat */
-#chat-box{position:absolute;bottom:80px;left:14px;width:260px;background:rgba(10,10,20,.88);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:40;}
+#chat-box{position:absolute;bottom:80px;left:14px;width:260px;background:rgba(26,26,45,0.92);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:40;}
 #chat-log{max-height:100px;overflow-y:auto;padding:7px 10px;display:flex;flex-direction:column;gap:2px;}
 #chat-log::-webkit-scrollbar{width:2px;}
 #chat-log::-webkit-scrollbar-thumb{background:var(--border);}
-.chat-line{font-size:10px;line-height:1.5;}
-.chat-name{color:var(--accent);font-weight:800;margin-right:4px;}
+.chat-line{font-size:10px;line-height:1.5;font-family:'Space Mono',monospace;}
+.chat-name{color:var(--accent);font-weight:700;margin-right:4px;}
 .sys-line{color:var(--green);}
 #chat-input-row{display:flex;border-top:1px solid var(--border);}
-#chat-in{flex:1;background:transparent;border:none;color:white;padding:7px 10px;font-family:'Inter',sans-serif;font-size:11px;outline:none;}
-#chat-send{background:var(--primary);border:none;color:white;padding:0 10px;cursor:pointer;font-size:10px;}
+#chat-in{flex:1;background:transparent;border:none;color:white;padding:7px 10px;font-family:'Space Mono',monospace;font-size:11px;outline:none;}
+#chat-send{background:var(--primary);border:none;color:white;padding:0 10px;cursor:pointer;font-size:10px;font-weight:700;}
 
-/* Floating text */
-.float-text{position:absolute;pointer-events:none;font-family:'Inter',sans-serif;font-size:13px;font-weight:800;letter-spacing:0;z-index:70;animation:floatUp 1.2s ease-out forwards;}
+.float-text{position:absolute;pointer-events:none;font-family:'Bebas Neue',cursive;font-size:15px;letter-spacing:2px;z-index:70;animation:floatUp 1.2s ease-out forwards;}
 @keyframes floatUp{0%{opacity:1;transform:translateY(0);}100%{opacity:0;transform:translateY(-40px);}}
 
-/* Controls hint */
-#ctrl-hint{position:absolute;top:54px;right:14px;font-size:10px;color:var(--muted);z-index:40;line-height:1.9;text-align:right;background:rgba(10,10,20,.7);padding:5px 10px;border-radius:6px;border:1px solid var(--border);}
+#ctrl-hint{position:absolute;top:54px;right:14px;font-size:10px;color:var(--muted);z-index:40;line-height:1.9;text-align:right;background:rgba(26,26,45,0.85);padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-family:'Space Mono',monospace;}
 
 .hidden{display:none!important;}
 </style>
@@ -109,7 +100,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 <div id="login-screen">
   <div class="login-box">
     <div class="login-title">ClarePlatformer</div>
-    <div class="login-sub">USES CLARECOOL ACCOUNT</div>
     <input type="text" id="in-user" placeholder="Username" autocomplete="off">
     <input type="password" id="in-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" onclick="doLogin()">PLAY</button>
@@ -130,24 +120,20 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
     <span class="hud-sep">|</span>
     <span class="hud-info" id="hud-online">0 online</span>
     <span class="hud-info" id="hud-layer" style="color:#a29bfe;margin-left:6px;"></span>
-    <span id="hud-time" style="color:var(--accent);">☀️ DAY</span>
+    <span id="hud-time">☀️ DAY</span>
     <span class="hud-info" id="hud-coords" style="color:#3a3a5a;font-size:10px;margin-left:6px;"></span>
     <button class="hud-exit" onclick="exitGame()">Exit</button>
   </div>
 
   <canvas id="game-canvas"></canvas>
-
-  <!-- Hotbar -->
   <div id="hotbar"></div>
 
-  <!-- C-craft bar -->
   <div id="c-craft-bar">
-    <div class="c-bar-title">QUICK CRAFT (HOLD C)</div>
+    <div class="c-bar-title">QUICK CRAFT — HOLD C</div>
     <div class="c-bar-progress"><div class="c-bar-fill" id="c-bar-fill" style="width:0%"></div></div>
     <div class="craft-list" id="c-craft-list"></div>
   </div>
 
-  <!-- Controls -->
   <div id="ctrl-hint">
     WASD · Move &nbsp; Space · Jump<br>
     E · Interact &nbsp; C · Craft menu<br>
@@ -155,7 +141,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
     Click+hold · Mine/Chop
   </div>
 
-  <!-- Chat -->
   <div id="chat-box">
     <div id="chat-log"></div>
     <div id="chat-input-row">
@@ -183,14 +168,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
       <div class="furnace-slot" id="f-fuel" onclick="furnaceSlotClick('fuel')">
         <span id="f-fuel-icon">🪵</span>
       </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:3px;" id="f-fuel-count">0 wood</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'Space Mono',monospace;" id="f-fuel-count">0 wood</div>
     </div>
     <div class="furnace-slot-wrap">
       <div class="furnace-slot-label">ORE</div>
       <div class="furnace-slot" id="f-ore" onclick="furnaceSlotClick('ore')">
         <span id="f-ore-icon">⛏️</span>
       </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:3px;" id="f-ore-count">0 ore</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'Space Mono',monospace;" id="f-ore-count">0 ore</div>
     </div>
     <div class="furnace-arrow">→</div>
     <div class="furnace-slot-wrap">
@@ -198,7 +183,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
       <div class="furnace-slot" style="cursor:default;" id="f-out-slot">
         <span id="f-out-icon">—</span>
       </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:3px;" id="f-out-count">0 bars</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:3px;font-family:'Space Mono',monospace;" id="f-out-count">0 bars</div>
     </div>
   </div>
   <div class="furnace-progress"><div class="furnace-progress-bar" id="f-prog-bar" style="width:0%"></div></div>
@@ -236,25 +221,22 @@ const cdDB = cdApp.database();
 // ══════════════════════════════════════════
 // CONSTANTS
 // ══════════════════════════════════════════
-const BLOCK  = 32;    // px per block
+const BLOCK  = 32;
 const CC_ADMINS = ["44","bboy2014","bartelsfamily5","hunter"];
 
-// Layer depths (in blocks from surface y=0)
 const GRASS_DEPTH  = 1;
 const DIRT_DEPTH   = 90;
 const STONE_DEPTH  = 100;
 const BEDROCK_DEPTH= 3;
-const TOTAL_DEPTH  = GRASS_DEPTH + DIRT_DEPTH + STONE_DEPTH + BEDROCK_DEPTH; // 194
+const TOTAL_DEPTH  = GRASS_DEPTH + DIRT_DEPTH + STONE_DEPTH + BEDROCK_DEPTH;
 
-// Block types
 const BT = {
   AIR:0, GRASS:1, DIRT:2, STONE:3, BEDROCK:4,
   IRON_ORE:5, COAL_ORE:6, COPPER_ORE:7, GOLD_ORE:8, TUNGSTEN_ORE:9,
   CRAFTING_TABLE:10, FURNACE:11, WOOD:12,
-  DIRT_CLUMP:13  // dirt patches in stone layer
+  DIRT_CLUMP:13
 };
 
-// Block colors for canvas rendering
 const BLOCK_COLOR = {
   [BT.GRASS]:  '#3a8a3a',
   [BT.DIRT]:   '#7a4e2a',
@@ -273,10 +255,9 @@ const BLOCK_COLOR = {
 const BLOCK_LABEL = {
   [BT.IRON_ORE]:'Fe',[BT.COAL_ORE]:'C',[BT.COPPER_ORE]:'Cu',
   [BT.GOLD_ORE]:'Au',[BT.TUNGSTEN_ORE]:'W',
-  [BT.CRAFTING_TABLE]:'CT',[BT.FURNACE]:'F',[BT.WOOD]:'T'
+  [BT.CRAFTING_TABLE]:'CT',[BT.FURNACE]:'F'
 };
 
-// Block durability (mine points needed)
 const BLOCK_HP = {
   [BT.DIRT]:1,[BT.GRASS]:1,[BT.STONE]:3,[BT.IRON_ORE]:5,
   [BT.COAL_ORE]:3,[BT.COPPER_ORE]:4,[BT.GOLD_ORE]:7,
@@ -284,7 +265,6 @@ const BLOCK_HP = {
   [BT.WOOD]:0,[BT.BEDROCK]:Infinity,[BT.DIRT_CLUMP]:1
 };
 
-// What drops when mined
 const BLOCK_DROP = {
   [BT.DIRT]:'dirt',[BT.GRASS]:'dirt',[BT.STONE]:'stone',
   [BT.IRON_ORE]:'iron_ore',[BT.COAL_ORE]:'coal',[BT.COPPER_ORE]:'copper_ore',
@@ -293,7 +273,9 @@ const BLOCK_DROP = {
   [BT.DIRT_CLUMP]:'dirt'
 };
 
-// Item definitions
+// Non-collidable block types — player passes through these
+const NON_SOLID = new Set([BT.AIR, BT.WOOD]);
+
 const ITEMS = {
   wood:       {name:'Wood',       icon:'🪵',stack:64},
   dirt:       {name:'Dirt',       icon:'🟫',stack:64},
@@ -307,7 +289,6 @@ const ITEMS = {
   copper_bar: {name:'Copper Bar', icon:'🔸',stack:64},
   gold_bar:   {name:'Gold Bar',   icon:'💛',stack:64},
   tungsten_bar:{name:'Tungsten Bar',icon:'🔹',stack:64},
-  // Tools
   wood_sword: {name:'Wood Sword', icon:'🗡️',stack:1,tool:'sword',dmg:2,mat:'wood'},
   wood_axe:   {name:'Wood Axe',   icon:'🪓',stack:1,tool:'axe',chopTime:15,mat:'wood'},
   wood_pick:  {name:'Wood Pickaxe',icon:'⛏️',stack:1,tool:'pick',mps:1,mat:'wood'},
@@ -324,14 +305,12 @@ const ITEMS = {
   furnace:    {name:'Furnace',icon:'🔥',stack:1,placeable:BT.FURNACE},
 };
 
-// Crafting recipes
-// key: itemId, value: {ingredients:{itemId:count,...}, requiresTable:bool}
 const RECIPES = {
   crafting_table:  {ing:{wood:10},          table:false, result:1},
   furnace:         {ing:{stone:10},          table:true,  result:1},
-  wood_sword:      {ing:{wood:5+3},          table:true,  result:1},   // simplified: total mats merged below
-  wood_axe:        {ing:{wood:5+2},          table:true,  result:1},
-  wood_pick:       {ing:{wood:5+5},          table:true,  result:1},
+  wood_sword:      {ing:{wood:8},            table:true,  result:1},
+  wood_axe:        {ing:{wood:7},            table:true,  result:1},
+  wood_pick:       {ing:{wood:10},           table:true,  result:1},
   stone_sword:     {ing:{stone:3,wood:5},    table:true,  result:1},
   stone_axe:       {ing:{stone:2,wood:5},    table:true,  result:1},
   stone_pick:      {ing:{stone:5,wood:5},    table:true,  result:1},
@@ -343,43 +322,36 @@ const RECIPES = {
   gold_pick:       {ing:{gold_bar:5,wood:5}, table:true,  result:1},
 };
 
-// Smeltable ores
 const SMELT_MAP = {
   iron_ore:'iron_bar', copper_ore:'copper_bar',
   gold_ore:'gold_bar', tungsten_ore:'tungsten_bar'
 };
 
-// Physics
 const GRAVITY    = 0.5;
 const JUMP_FORCE = -12;
 const MOVE_SPEED = 4;
 
-// Day/night
-const DAY_LENGTH = 10 * 60 * 1000; // 10 min real = 1 game day
+const DAY_LENGTH = 10 * 60 * 1000;
 let gameStartTime = Date.now();
-function getDayFraction() {
-  return ((Date.now() - gameStartTime) % DAY_LENGTH) / DAY_LENGTH;
-}
+function getDayFraction() { return ((Date.now() - gameStartTime) % DAY_LENGTH) / DAY_LENGTH; }
 function isDay() { const f = getDayFraction(); return f < 0.5; }
 
 // ══════════════════════════════════════════
-// WORLD — chunk-based terrain
+// WORLD
 // ══════════════════════════════════════════
-const CHUNK_SIZE = 32; // blocks wide
-const chunks = {};    // key: chunkX (in chunk units)
-const treeObjects = {}; // key: worldBlockX, val: {blocks:[{bx,by}], hp, maxHp, chopTimer, chopProgress}
-const placedBlocks = {}; // key: "bx,by", val: BT type (player-placed)
-const brokenBlocks = {}; // key: "bx,by", val: true (mined out)
-const grassTimers = {}; // key: "bx,by", val: timestamp when exposed
+const CHUNK_SIZE = 32;
+const chunks = {};
+const treeObjects = {};
+const placedBlocks = {};
+const brokenBlocks = {};
+const grassTimers = {};
 let furnaceData = { fuelOre:'', fuelCount:0, oreType:'', oreCount:0, output:'', outputCount:0, smeltTimer:0, smelting:false };
 
-// Seeded RNG
 function rng(seed) {
   let s = seed * 9301 + 49297;
   return ((s % 233280) + 233280) % 233280 / 233280;
 }
 
-// Get or generate chunk
 function getChunk(cx) {
   if (!chunks[cx]) chunks[cx] = generateChunk(cx);
   return chunks[cx];
@@ -393,38 +365,25 @@ function generateChunk(cx) {
       data[by * CHUNK_SIZE + lx] = getDefaultBlock(bx, by);
     }
   }
-  // Spawn trees after terrain
   for (let lx = 0; lx < CHUNK_SIZE; lx += 4) {
     const bx = cx * CHUNK_SIZE + lx;
-    if (rng(bx * 31 + 7777) > 0.55) {
-      spawnTree(bx);
-    }
+    if (rng(bx * 31 + 7777) > 0.55) spawnTree(bx);
   }
   return data;
 }
 
 function getDefaultBlock(bx, by) {
-  // Surface variations with simple noise
-  const surf = 0; // flat surface at by=0
-
-  if (by === TOTAL_DEPTH - 3) return BT.BEDROCK; // bedrock top
+  if (by === TOTAL_DEPTH - 3) return BT.BEDROCK;
   if (by >= TOTAL_DEPTH - 3) return BT.BEDROCK;
-
-  if (by === surf) return BT.GRASS;
-
-  // Dirt layer (by 1..GRASS_DEPTH+DIRT_DEPTH-1 = 1..90)
-  if (by > surf && by < GRASS_DEPTH + DIRT_DEPTH) {
+  if (by === 0) return BT.GRASS;
+  if (by > 0 && by < GRASS_DEPTH + DIRT_DEPTH) {
     const r = rng(bx * 13 + by * 7 + 3939);
-    // Iron ore: small clumps
     if (r < 0.025) return BT.IRON_ORE;
     if (r < 0.045) return BT.COAL_ORE;
     if (r < 0.060) return BT.COPPER_ORE;
-    // Stone clumps
     if (rng(bx*7+by*19+11) < 0.08) return BT.STONE;
     return BT.DIRT;
   }
-
-  // Stone layer
   if (by < GRASS_DEPTH + DIRT_DEPTH + STONE_DEPTH) {
     const r = rng(bx * 17 + by * 11 + 5050);
     if (r < 0.02)  return BT.IRON_ORE;
@@ -435,36 +394,23 @@ function getDefaultBlock(bx, by) {
     if (rng(bx*3+by*29+7) < 0.05) return BT.DIRT_CLUMP;
     return BT.STONE;
   }
-
   return BT.BEDROCK;
 }
 
 function spawnTree(bx) {
   const treeKey = String(bx);
   if (treeObjects[treeKey]) return;
-  const height = 5 + Math.floor(rng(bx * 53 + 1111) * 6); // 5-10
+  const height = 5 + Math.floor(rng(bx * 53 + 1111) * 6);
   const blocks = [];
-  for (let i = 1; i <= height; i++) {
-    blocks.push({ bx, by: -i }); // above surface (negative y = above ground)
-  }
-  treeObjects[treeKey] = {
-    blocks, height,
-    hp: height, // 1 chop per block
-    maxHp: height,
-    chopProgress: 0,
-    chopTimer: 0,
-    dead: false
-  };
+  for (let i = 1; i <= height; i++) blocks.push({ bx, by: -i });
+  treeObjects[treeKey] = { blocks, height, hp: height, maxHp: height, chopProgress: 0, chopTimer: 0, dead: false };
 }
 
-// Get block at world block coords (bx, by)
-// by=0 is grass surface, negative = above ground (tree space)
 function getBlock(bx, by) {
   const key = `${bx},${by}`;
   if (brokenBlocks[key]) return BT.AIR;
   if (placedBlocks[key] !== undefined) return placedBlocks[key];
   if (by < 0) {
-    // Above ground = tree blocks
     const tree = treeObjects[String(bx)];
     if (tree && !tree.dead && tree.blocks.some(b => b.bx === bx && b.by === by)) return BT.WOOD;
     return BT.AIR;
@@ -478,13 +424,8 @@ function getBlock(bx, by) {
 
 function setBlock(bx, by, type) {
   const key = `${bx},${by}`;
-  if (type === BT.AIR) {
-    brokenBlocks[key] = true;
-    delete placedBlocks[key];
-  } else {
-    placedBlocks[key] = type;
-    delete brokenBlocks[key];
-  }
+  if (type === BT.AIR) { brokenBlocks[key] = true; delete placedBlocks[key]; }
+  else { placedBlocks[key] = type; delete brokenBlocks[key]; }
 }
 
 // ══════════════════════════════════════════
@@ -495,36 +436,27 @@ let isLoginMode = true;
 let others = {};
 let lastPush = 0, chatFocused = false;
 
-// Position in world-pixel coords
 let px = 200, py = -BLOCK;
 let pvx = 0, pvy = 0;
 let onGround = false, walkFrame = 0, walkTimer = 0;
 let facingRight = true;
 
-// Inventory: 9*4 = 36 slots
 const INV_ROWS = 4, INV_COLS = 9;
-let inventory = Array(INV_ROWS * INV_COLS).fill(null); // {id, count}
+let inventory = Array(INV_ROWS * INV_COLS).fill(null);
 let hotbarSel = 0;
 
-// Mining state
-let miningState = null; // {bx,by,progress,needed,rate}
+let miningState = null;
 let mouseWorld = { x: 0, y: 0 };
 let mouseDown = false;
 
-// C-craft hold
 let cHeld = false, cHeldTime = 0;
 let craftBarOpen = false;
 
-// Active furnace/crafting block
 let activeFurnaceBX = null, activeFurnaceBY = null;
 
-// Camera
-let camX = 0, camY = 0; // world-pixel top-left
-
-// Canvas
+let camX = 0, camY = 0;
 let canvas, ctx, W, H;
 
-// World-pixel surface Y
 const SURFACE_PY = 0;
 
 function hashColor(str) {
@@ -573,14 +505,14 @@ function launchGame(u) {
   document.getElementById('hud-name').textContent = u;
   initCanvas();
   setupInput();
+  // Give player a wooden axe to start
+  addItem('wood_axe', 1);
   buildHotbar();
   connectFirebase();
-  // Spawn player above surface
   px = 200;
   py = SURFACE_PY - BLOCK * 2;
   camX = px - W * 0.4;
   camY = py - H * 0.4;
-  // Pregenerate some chunks
   for (let cx = -2; cx <= 10; cx++) getChunk(cx);
   postSysMsg(u + ' entered the world!');
   ccDB.ref('users/' + u).update({ lastSeen: Date.now() });
@@ -636,11 +568,9 @@ function setupInput() {
     if (e.code === 'Enter') { document.getElementById('chat-in').focus(); chatFocused = true; }
     if (e.code === 'KeyE') tryInteract();
     if (e.code === 'KeyC') { cHeld = true; }
-    // Hotbar 1-9
     for (let i = 1; i <= 9; i++) {
       if (e.code === `Digit${i}`) { hotbarSel = i - 1; buildHotbar(); }
     }
-    // Place block (right-click via P for now)
     if (e.code === 'KeyQ') tryPlaceBlock();
   });
   document.addEventListener('keyup', e => {
@@ -665,13 +595,11 @@ function addItem(id, count = 1) {
   const item = ITEMS[id];
   if (!item) return;
   if (item.stack === 1) {
-    // Find empty slot
     for (let i = 0; i < inventory.length; i++) {
       if (!inventory[i]) { inventory[i] = { id, count: 1 }; buildHotbar(); return; }
     }
     return;
   }
-  // Stackable
   let remaining = count;
   for (let i = 0; i < inventory.length && remaining > 0; i++) {
     if (inventory[i] && inventory[i].id === id && inventory[i].count < item.stack) {
@@ -760,7 +688,7 @@ function openCraftingUI(tableAvailable) {
   listEl.innerHTML = '';
   const items = buildCraftList(tableAvailable);
   if (!items.length) {
-    listEl.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Nothing to craft here.</div>';
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;font-family:Space Mono,monospace;">Nothing to craft here.</div>';
   }
   items.forEach(({ id, item, ingStr, can }) => {
     const div = document.createElement('div');
@@ -771,7 +699,6 @@ function openCraftingUI(tableAvailable) {
   el.classList.remove('hidden');
 }
 
-// Quick C-craft (only crafting_table available)
 function updateCBar(dt) {
   if (!cHeld) return;
   cHeldTime += dt;
@@ -783,7 +710,6 @@ function updateCBar(dt) {
     bar.style.display = 'block';
     const list = document.getElementById('c-craft-list');
     list.innerHTML = '';
-    // Only crafting_table without a table
     const items = buildCraftList(false);
     items.forEach(({ id, item, ingStr, can }) => {
       const div = document.createElement('div');
@@ -795,25 +721,17 @@ function updateCBar(dt) {
 }
 
 // ══════════════════════════════════════════
-// INTERACTION (E key)
+// INTERACTION
 // ══════════════════════════════════════════
 function tryInteract() {
-  // Find nearby placed blocks (crafting table / furnace)
   const pbx = Math.floor(px / BLOCK);
   const pby = Math.floor(py / BLOCK);
   for (let dx = -2; dx <= 2; dx++) {
     for (let dy = -2; dy <= 2; dy++) {
       const bx = pbx + dx, by = pby + dy;
       const bt = getBlock(bx, by);
-      if (bt === BT.CRAFTING_TABLE) {
-        openCraftingUI(true);
-        return;
-      }
-      if (bt === BT.FURNACE) {
-        activeFurnaceBX = bx; activeFurnaceBY = by;
-        openFurnace();
-        return;
-      }
+      if (bt === BT.CRAFTING_TABLE) { openCraftingUI(true); return; }
+      if (bt === BT.FURNACE) { activeFurnaceBX = bx; activeFurnaceBY = by; openFurnace(); return; }
     }
   }
 }
@@ -821,10 +739,7 @@ function tryInteract() {
 // ══════════════════════════════════════════
 // FURNACE
 // ══════════════════════════════════════════
-function openFurnace() {
-  updateFurnaceUI();
-  document.getElementById('overlay-furnace').classList.remove('hidden');
-}
+function openFurnace() { updateFurnaceUI(); document.getElementById('overlay-furnace').classList.remove('hidden'); }
 
 function updateFurnaceUI() {
   const fd = furnaceData;
@@ -842,25 +757,17 @@ function updateFurnaceUI() {
 function furnaceSlotClick(slot) {
   if (slot === 'fuel') {
     const wood = countItem('wood');
-    if (wood > 0) {
-      const add = Math.min(wood, 64);
-      removeItem('wood', add);
-      furnaceData.fuelCount += add;
-      updateFurnaceUI();
-    }
+    if (wood > 0) { const add = Math.min(wood, 64); removeItem('wood', add); furnaceData.fuelCount += add; updateFurnaceUI(); }
   } else if (slot === 'ore') {
-    // Put in the first smeltable ore from inventory
     const ores = Object.keys(SMELT_MAP);
     for (const ore of ores) {
       const cnt = countItem(ore);
       if (cnt > 0) {
         const add = Math.min(cnt, 64);
         removeItem(ore, add);
-        furnaceData.oreType = ore;
-        furnaceData.oreCount += add;
+        furnaceData.oreType = ore; furnaceData.oreCount += add;
         furnaceData.output = SMELT_MAP[ore];
-        updateFurnaceUI();
-        return;
+        updateFurnaceUI(); return;
       }
     }
   }
@@ -868,18 +775,12 @@ function furnaceSlotClick(slot) {
 
 function startSmelting() {
   if (furnaceData.fuelCount > 0 && furnaceData.oreCount > 0 && !furnaceData.smelting) {
-    furnaceData.smelting = true;
-    furnaceData.smeltTimer = 0;
-    updateFurnaceUI();
+    furnaceData.smelting = true; furnaceData.smeltTimer = 0; updateFurnaceUI();
   }
 }
 
 function collectOutput() {
-  if (furnaceData.outputCount > 0) {
-    addItem(furnaceData.output, furnaceData.outputCount);
-    furnaceData.outputCount = 0;
-    updateFurnaceUI();
-  }
+  if (furnaceData.outputCount > 0) { addItem(furnaceData.output, furnaceData.outputCount); furnaceData.outputCount = 0; updateFurnaceUI(); }
 }
 
 function tickFurnace(dt) {
@@ -891,15 +792,10 @@ function tickFurnace(dt) {
       furnaceData.oreCount--;
       furnaceData.fuelCount = Math.max(0, furnaceData.fuelCount - 0.2);
       furnaceData.outputCount++;
-      if (furnaceData.oreCount === 0 || furnaceData.fuelCount <= 0) {
-        furnaceData.smelting = false;
-      }
-    } else {
-      furnaceData.smelting = false;
-    }
+      if (furnaceData.oreCount === 0 || furnaceData.fuelCount <= 0) furnaceData.smelting = false;
+    } else { furnaceData.smelting = false; }
     updateFurnaceUI();
   } else {
-    // Update progress bar continuously
     const pct = Math.min(100, (furnaceData.smeltTimer / 5) * 100);
     const bar = document.getElementById('f-prog-bar');
     if (bar) bar.style.width = pct + '%';
@@ -952,7 +848,6 @@ function tickMining(dt) {
   const tby = Math.floor(mouseWorld.y / BLOCK);
   const block = getBlock(tbx, tby);
 
-  // Range check
   const pdx = tbx * BLOCK + BLOCK/2 - px;
   const pdy = tby * BLOCK + BLOCK/2 - py;
   if (Math.sqrt(pdx*pdx + pdy*pdy) > BLOCK * 6) { miningState = null; return; }
@@ -971,14 +866,10 @@ function tickMining(dt) {
     miningState.timer += dt;
     const needed = getAxeChopTime();
     if (miningState.timer >= needed) {
-      // Chop tree: give wood for all blocks
       const wood = tree.height;
       addItem('wood', wood);
-      // Remove all tree blocks
       tree.dead = true;
-      for (const b of tree.blocks) {
-        setBlock(b.bx, b.by, BT.AIR);
-      }
+      for (const b of tree.blocks) setBlock(b.bx, b.by, BT.AIR);
       spawnFloatText(`+${wood} 🪵`, px - camX + 16, py - camY - 30, '#6b4226');
       miningState = null;
     }
@@ -986,31 +877,20 @@ function tickMining(dt) {
   }
 
   if (!miningState || miningState.bx !== tbx || miningState.by !== tby) {
-    miningState = {
-      bx: tbx, by: tby,
-      progress: 0,
-      needed: BLOCK_HP[block] || 1,
-      rate: getMPS()
-    };
+    miningState = { bx: tbx, by: tby, progress: 0, needed: BLOCK_HP[block] || 1, rate: getMPS() };
   }
   miningState.progress += dt * miningState.rate;
   if (miningState.progress >= miningState.needed) {
     const drop = BLOCK_DROP[block];
     if (drop) addItem(drop, 1);
     setBlock(tbx, tby, BT.AIR);
-    // Handle grass timer for dirt below
-    if (block === BT.GRASS) {
-      const dirtKey = `${tbx},${tby}`;
-      // Dirt below becomes exposed
-      grassTimers[`${tbx},${tby+1}`] = Date.now();
-    }
+    if (block === BT.GRASS) grassTimers[`${tbx},${tby+1}`] = Date.now();
     miningState = null;
-    // After breaking, re-gen tree if needed
   }
 }
 
 // ══════════════════════════════════════════
-// GRASS GROWTH (day only)
+// GRASS GROWTH
 // ══════════════════════════════════════════
 function tickGrass() {
   if (!isDay()) return;
@@ -1019,16 +899,14 @@ function tickGrass() {
     if (now - ts >= 30000) {
       const [bx, by] = key.split(',').map(Number);
       const current = getBlock(bx, by);
-      if (current === BT.DIRT && getBlock(bx, by - 1) === BT.AIR) {
-        setBlock(bx, by, BT.GRASS);
-      }
+      if (current === BT.DIRT && getBlock(bx, by - 1) === BT.AIR) setBlock(bx, by, BT.GRASS);
       delete grassTimers[key];
     }
   }
 }
 
 // ══════════════════════════════════════════
-// PHYSICS
+// PHYSICS — trees (WOOD) are non-collidable
 // ══════════════════════════════════════════
 function tickPhysics(dt) {
   if (chatFocused) return;
@@ -1044,27 +922,21 @@ function tickPhysics(dt) {
   pvy += GRAVITY;
   if (pvy > 20) pvy = 20;
 
-  // Horizontal move with collision
   px += pvx;
   resolveHorizontal();
-
-  // Vertical
   py += pvy;
   onGround = false;
   resolveVertical();
 
-  // Generate chunks ahead
   const cx = Math.floor(px / BLOCK / CHUNK_SIZE);
   for (let c = cx - 2; c <= cx + 4; c++) getChunk(c);
 
-  // Camera smooth follow
   const targetCX = px - W * 0.4;
   const targetCY = py - H * 0.35;
   camX += (targetCX - camX) * 0.12;
   camY += (targetCY - camY) * 0.12;
   if (camX < -BLOCK * 2) camX = -BLOCK * 2;
 
-  // HUD updates
   const layerY = Math.floor(py / BLOCK);
   let layerName = 'Above Ground';
   if (layerY >= 0 && layerY < GRASS_DEPTH) layerName = '🌿 Grass Layer';
@@ -1077,7 +949,7 @@ function tickPhysics(dt) {
 
 function resolveHorizontal() {
   const bx0 = Math.floor(px / BLOCK);
-  const bx1 = Math.floor((px + 20) / BLOCK); // player width ~20
+  const bx1 = Math.floor((px + 20) / BLOCK);
   const by0 = Math.floor(py / BLOCK);
   const by1 = Math.floor((py + 28) / BLOCK);
   for (let by = by0; by <= by1; by++) {
@@ -1091,29 +963,22 @@ function resolveVertical() {
   const bx1 = Math.floor((px + 18) / BLOCK);
   const by0 = Math.floor(py / BLOCK);
   const by1 = Math.floor((py + 28) / BLOCK);
-  // Landing
   if (pvy >= 0) {
     for (let bx = bx0; bx <= bx1; bx++) {
-      if (isSolid(bx, by1)) {
-        py = by1 * BLOCK - 29;
-        pvy = 0; onGround = true;
-      }
+      if (isSolid(bx, by1)) { py = by1 * BLOCK - 29; pvy = 0; onGround = true; }
     }
   }
-  // Ceiling
   if (pvy < 0) {
     for (let bx = bx0; bx <= bx1; bx++) {
-      if (isSolid(bx, by0)) {
-        py = (by0 + 1) * BLOCK;
-        pvy = 0;
-      }
+      if (isSolid(bx, by0)) { py = (by0 + 1) * BLOCK; pvy = 0; }
     }
   }
 }
 
+// isSolid excludes WOOD (trees) so player walks through them
 function isSolid(bx, by) {
   const bt = getBlock(bx, by);
-  return bt !== BT.AIR;
+  return !NON_SOLID.has(bt);
 }
 
 // ══════════════════════════════════════════
@@ -1188,10 +1053,10 @@ function spawnFloatText(text, sx, sy, color) {
 // ══════════════════════════════════════════
 function getSkyColor() {
   const f = getDayFraction();
-  if (f < 0.15) return ['#0a0a20','#111133']; // dawn
-  if (f < 0.45) return ['#2a4a8a','#5577cc']; // day
-  if (f < 0.55) return ['#3a2a0a','#554422']; // dusk
-  return ['#040408','#080814'];                // night
+  if (f < 0.15) return ['#0f0f1a','#1a1a2d'];
+  if (f < 0.45) return ['#1a2a5a','#3355aa'];
+  if (f < 0.55) return ['#2a1a0a','#442a15'];
+  return ['#0a0a14','#0f0f1a'];
 }
 
 function drawSky() {
@@ -1202,32 +1067,29 @@ function drawSky() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  // Stars at night
   const f = getDayFraction();
   if (f > 0.55 || f < 0.1) {
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillStyle = 'rgba(232,255,0,0.6)';
     [37,71,113,137,173,211,251,277,317].forEach((s, i) => {
       const sx = ((s * 173 + i * 311) % W);
       const sy = (s * 41 + i * 53) % (H * 0.5);
       ctx.fillRect(sx, sy, 1.5, 1.5);
     });
   }
-  // Sun/moon
   const sunX = W * (f < 0.5 ? f * 2 : (f - 0.5) * 2);
   const sunY = H * 0.15;
   if (f < 0.5) {
-    ctx.shadowBlur = 20; ctx.shadowColor = '#ffdd44';
-    ctx.fillStyle = '#ffee44';
-    ctx.beginPath(); ctx.arc(sunX, sunY, 20, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 24; ctx.shadowColor = '#e8ff00';
+    ctx.fillStyle = '#e8ff00';
+    ctx.beginPath(); ctx.arc(sunX, sunY, 18, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
   } else {
-    ctx.fillStyle = '#ccccaa';
-    ctx.beginPath(); ctx.arc(sunX, sunY, 16, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#a29bfe';
+    ctx.beginPath(); ctx.arc(sunX, sunY, 14, 0, Math.PI*2); ctx.fill();
   }
 }
 
 function drawTerrain() {
-  // Visible block range
   const startBX = Math.floor(camX / BLOCK) - 1;
   const endBX   = Math.ceil((camX + W) / BLOCK) + 1;
   const startBY = Math.floor(camY / BLOCK) - 1;
@@ -1243,30 +1105,22 @@ function drawTerrain() {
     }
   }
 
-  // Draw mining progress indicator
   if (miningState && !miningState.isTree) {
     const sx = miningState.bx * BLOCK - camX;
     const sy = miningState.by * BLOCK - camY;
     const pct = miningState.progress / miningState.needed;
     ctx.fillStyle = `rgba(0,0,0,${pct * 0.7})`;
     ctx.fillRect(sx, sy, BLOCK, BLOCK);
-    // Crack lines
-    ctx.strokeStyle = `rgba(255,255,255,${pct * 0.8})`;
+    ctx.strokeStyle = `rgba(232,255,0,${pct * 0.8})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(sx + BLOCK * 0.3, sy + BLOCK * 0.3);
-    ctx.lineTo(sx + BLOCK * 0.7, sy + BLOCK * 0.8);
-    ctx.moveTo(sx + BLOCK * 0.6, sy + BLOCK * 0.2);
-    ctx.lineTo(sx + BLOCK * 0.2, sy + BLOCK * 0.7);
+    ctx.moveTo(sx + BLOCK * 0.3, sy + BLOCK * 0.3); ctx.lineTo(sx + BLOCK * 0.7, sy + BLOCK * 0.8);
+    ctx.moveTo(sx + BLOCK * 0.6, sy + BLOCK * 0.2); ctx.lineTo(sx + BLOCK * 0.2, sy + BLOCK * 0.7);
     ctx.stroke();
-    // Progress bar below block
-    ctx.fillStyle = '#333';
-    ctx.fillRect(sx, sy + BLOCK + 2, BLOCK, 4);
-    ctx.fillStyle = '#e8ff00';
-    ctx.fillRect(sx, sy + BLOCK + 2, BLOCK * pct, 4);
+    ctx.fillStyle = '#1a1a2d'; ctx.fillRect(sx, sy + BLOCK + 2, BLOCK, 4);
+    ctx.fillStyle = '#e8ff00'; ctx.fillRect(sx, sy + BLOCK + 2, BLOCK * pct, 4);
   }
 
-  // Draw tree chop progress
   if (miningState && miningState.isTree) {
     const needed = getAxeChopTime();
     const pct = miningState.timer / needed;
@@ -1274,9 +1128,9 @@ function drawTerrain() {
     if (tree) {
       const sx = miningState.bx * BLOCK - camX;
       const sy = SURFACE_PY - camY;
-      ctx.fillStyle = '#333';
+      ctx.fillStyle = '#1a1a2d';
       ctx.fillRect(sx - 2, sy - 8, BLOCK + 4, 5);
-      ctx.fillStyle = '#6b4226';
+      ctx.fillStyle = '#e8ff00';
       ctx.fillRect(sx - 2, sy - 8, (BLOCK + 4) * pct, 5);
     }
   }
@@ -1287,7 +1141,6 @@ function drawBlock(ctx, bt, sx, sy, bx, by) {
   ctx.fillStyle = col;
   ctx.fillRect(sx, sy, BLOCK, BLOCK);
 
-  // Texture details
   if (bt === BT.GRASS) {
     ctx.fillStyle = '#5aaa4a';
     ctx.fillRect(sx, sy, BLOCK, 5);
@@ -1304,14 +1157,13 @@ function drawBlock(ctx, bt, sx, sy, bx, by) {
     ctx.lineWidth = 1;
     ctx.strokeRect(sx + 0.5, sy + 0.5, BLOCK - 1, BLOCK - 1);
   } else if (bt === BT.WOOD) {
-    // Tree log / trunk
+    // Tree rendering — decorative only, player passes through
     ctx.fillStyle = '#4a2e12';
     ctx.fillRect(sx + BLOCK * 0.3, sy, BLOCK * 0.4, BLOCK);
     ctx.fillStyle = '#7a5a30';
     ctx.fillRect(sx + BLOCK * 0.35, sy + 2, BLOCK * 0.1, BLOCK - 4);
-    // Leaves at top area
     if (by < -2) {
-      ctx.fillStyle = '#2a7a1a';
+      ctx.fillStyle = 'rgba(30,100,20,0.82)';
       ctx.beginPath();
       ctx.arc(sx + BLOCK/2, sy + BLOCK/2, BLOCK * 0.9, 0, Math.PI*2);
       ctx.fill();
@@ -1319,8 +1171,7 @@ function drawBlock(ctx, bt, sx, sy, bx, by) {
   } else if (bt === BT.CRAFTING_TABLE) {
     ctx.fillStyle = '#3a2008';
     ctx.fillRect(sx + 2, sy + 2, BLOCK - 4, BLOCK - 4);
-    ctx.fillStyle = '#8a5a20';
-    ctx.strokeStyle = '#aa7a30';
+    ctx.strokeStyle = '#a29bfe';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(sx + 4, sy + BLOCK/2); ctx.lineTo(sx + BLOCK - 4, sy + BLOCK/2);
@@ -1329,22 +1180,20 @@ function drawBlock(ctx, bt, sx, sy, bx, by) {
   } else if (bt === BT.FURNACE) {
     ctx.fillStyle = '#2a2a2a';
     ctx.fillRect(sx + 4, sy + 6, BLOCK - 8, BLOCK - 8);
-    ctx.fillStyle = furnaceData.smelting ? '#ff6600' : '#333';
+    ctx.fillStyle = furnaceData.smelting ? '#ff6600' : '#4834d4';
     ctx.beginPath();
     ctx.arc(sx + BLOCK/2, sy + BLOCK/2 + 4, 5, 0, Math.PI*2);
     ctx.fill();
     if (furnaceData.smelting) {
-      ctx.shadowBlur = 10; ctx.shadowColor = '#ff6600';
-      ctx.fill(); ctx.shadowBlur = 0;
+      ctx.shadowBlur = 10; ctx.shadowColor = '#ff6600'; ctx.fill(); ctx.shadowBlur = 0;
     }
   }
 
-  // Ore sparkles
   if (bt >= BT.IRON_ORE && bt <= BT.TUNGSTEN_ORE) {
     const oreColors = {
       [BT.IRON_ORE]:'#ddd',[BT.COAL_ORE]:'#888',
-      [BT.COPPER_ORE]:'#ffaa44',[BT.GOLD_ORE]:'#ffee44',
-      [BT.TUNGSTEN_ORE]:'#88aaff'
+      [BT.COPPER_ORE]:'#ffaa44',[BT.GOLD_ORE]:'#e8ff00',
+      [BT.TUNGSTEN_ORE]:'#a29bfe'
     };
     ctx.fillStyle = oreColors[bt] || '#fff';
     const r = rng(bx * 5 + by * 11);
@@ -1352,16 +1201,14 @@ function drawBlock(ctx, bt, sx, sy, bx, by) {
     ctx.fillRect(sx + 16 + r * 6, sy + 14 + r * 6, 3, 3);
   }
 
-  // Block label (small text for important blocks)
   if (BLOCK_LABEL[bt]) {
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = 'bold 8px "Inter",sans-serif';
+    ctx.font = 'bold 8px "Space Mono",monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(BLOCK_LABEL[bt], sx + BLOCK/2, sy + BLOCK/2);
   }
 
-  // Border
   ctx.strokeStyle = 'rgba(0,0,0,0.18)';
   ctx.lineWidth = 0.5;
   ctx.strokeRect(sx + 0.25, sy + 0.25, BLOCK - 0.5, BLOCK - 0.5);
@@ -1373,33 +1220,28 @@ function drawPlayer(worldX, worldY, color, facing, frame, isMe, username, isAdmi
   const PW = 22, PH = 28;
   ctx.save();
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath(); ctx.ellipse(sx + PW/2, sy + PH + 3, PW/2, 4, 0, 0, Math.PI*2); ctx.fill();
 
-  // Legs
   const legSwing = onGround ? Math.sin(frame * Math.PI / 2) * 3 : 0;
   ctx.fillStyle = darken(color, 0.55);
   ctx.fillRect(sx + 3, sy + PH - 1, 7, 10 + (isOther ? 0 : legSwing));
   ctx.fillRect(sx + 12, sy + PH - 1, 7, 10 - (isOther ? 0 : legSwing));
 
-  // Body
   ctx.fillStyle = color;
   ctx.fillRect(sx, sy, PW, PH);
   ctx.strokeStyle = isMe ? 'rgba(232,255,0,0.9)' : 'rgba(0,0,0,0.5)';
   ctx.lineWidth = isMe ? 2 : 1;
   ctx.strokeRect(sx + 0.5, sy + 0.5, PW - 1, PH - 1);
 
-  // Eyes
   const eyeOffX = facing > 0 ? PW - 12 : 2;
   ctx.fillStyle = '#fff';
   ctx.fillRect(sx + eyeOffX, sy + 8, 4, 4);
   ctx.fillRect(sx + eyeOffX + 6, sy + 8, 4, 4);
   ctx.fillStyle = '#111';
-  ctx.fillRect(sx + eyeOffX + (facing > 0 ? 1 : 1), sy + 9, 2, 2);
+  ctx.fillRect(sx + eyeOffX + 1, sy + 9, 2, 2);
   ctx.fillRect(sx + eyeOffX + 7, sy + 9, 2, 2);
 
-  // Held item icon
   const slot = isMe ? getHotbarItem() : null;
   if (slot) {
     const item = ITEMS[slot.id];
@@ -1410,7 +1252,6 @@ function drawPlayer(worldX, worldY, color, facing, frame, isMe, username, isAdmi
     }
   }
 
-  // Admin crown
   if (isAdmin) {
     ctx.fillStyle = '#e8ff00';
     ctx.shadowBlur = 6; ctx.shadowColor = '#e8ff00';
@@ -1421,13 +1262,12 @@ function drawPlayer(worldX, worldY, color, facing, frame, isMe, username, isAdmi
     ctx.shadowBlur = 0;
   }
 
-  // Name tag
-  ctx.font = 'bold 10px "Inter",sans-serif';
+  ctx.font = 'bold 10px "Space Mono",monospace';
   ctx.textAlign = 'center';
   const label = username + (isAdmin ? ' ★' : '');
   const tw = ctx.measureText(label).width;
   const pad = 4;
-  ctx.fillStyle = 'rgba(10,10,20,0.85)';
+  ctx.fillStyle = 'rgba(26,26,45,0.9)';
   ctx.strokeStyle = isAdmin ? '#e8ff00' : '#4834d4';
   ctx.lineWidth = 1;
   roundRect(ctx, sx + PW/2 - tw/2 - pad, sy - 18, tw + pad*2, 13, 3);
@@ -1453,15 +1293,14 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 function drawDepthFog() {
-  // Deeper = darker fog overlay
   const depthFrac = Math.max(0, Math.min(1, py / (BLOCK * TOTAL_DEPTH)));
-  ctx.fillStyle = `rgba(0,0,0,${depthFrac * 0.65})`;
+  ctx.fillStyle = `rgba(10,10,20,${depthFrac * 0.65})`;
   ctx.fillRect(0, 0, W, H);
 }
 
 function drawHUD() {
   const dayFrac = getDayFraction();
-  const daytxt = dayFrac < 0.5 ? `☀️ ${Math.round(dayFrac*2*100)}%` : `🌙 ${Math.round((dayFrac-0.5)*2*100)}%`;
+  const daytxt = dayFrac < 0.5 ? `☀️ DAY` : `🌙 NIGHT`;
   document.getElementById('hud-time').textContent = daytxt;
 }
 
@@ -1482,18 +1321,15 @@ function gameLoop(ts) {
   updateCBar(dt);
   pushPosition();
 
-  // DRAW
   ctx.clearRect(0, 0, W, H);
   drawSky();
   drawTerrain();
 
-  // Remote players
   for (const id in others) {
     const p = others[id];
     if (!p || p.x == null) continue;
     drawPlayer(p.x, p.y, p.color || '#4834d4', p.facing || 1, 0, false, p.name, p.isAdmin, true);
   }
-  // Self
   drawPlayer(px, py, hashColor(myUser), facingRight ? 1 : -1, walkFrame, true, myUser, CC_ADMINS.includes(myUser), false);
 
   drawDepthFog();
@@ -1503,9 +1339,7 @@ function gameLoop(ts) {
 // ══════════════════════════════════════════
 // OVERLAYS
 // ══════════════════════════════════════════
-function closeOverlay(id) {
-  document.getElementById(id).classList.add('hidden');
-}
+function closeOverlay(id) { document.getElementById(id).classList.add('hidden'); }
 </script>
 </body>
 </html>
