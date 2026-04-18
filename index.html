@@ -157,242 +157,209 @@ const CALVIN_KEY = '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';
 const IRIS_KEY   = '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';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL      = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const TURN_DELAY = 2800; // ms pause between turns so bubbles are readable
 
 const CALVIN_SYS = `You are Calvin, a rectangular prism who lives in a 3D world with his companion Iris (a floating cube).
 Personality: calm, straightforward, thoughtful. Not excitable. Short sentences — 1 to 2 max. Family-friendly always.
 
 You can place shapes in the world using a BUILD command. The BUILD command is what ACTUALLY creates the shape — without it, nothing appears. Words alone do nothing.
 
-STRICT RULE: If you mention placing, making, building, or creating anything — you MUST include the BUILD command in that same reply. No exceptions. Do not say "I'll build a tower" without the command. If you want to build, just do it.
+STRICT RULE: If you mention placing, making, building, or creating anything — you MUST include the BUILD command in that same reply. No exceptions.
 
 BUILD format (one line, at the very end of your reply):
 BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1]}
 
 Fields:
 - shape: sphere | pyramid | torus | cube | rectprism
-- color: hex string e.g. "#ff4422"
-- x: -12 to 12 (left/right in the world)
-- y: 0 = ground level. Use y>0 to stack things on top of each other or float shapes in the air. e.g. y:2 places it elevated.
-- z: -12 to 12 (forward/back in the world)
-- scale: [width, height, depth] — e.g. [3,0.3,3] for a flat slab, [0.8,3,0.8] for a tall pillar
+- color: hex string
+- x: -12 to 12, y: 0=ground (y>0 elevates), z: -12 to 12
+- scale: [width, height, depth]
 
-You can build multiple things at once by including multiple BUILD lines. Use different x/y/z positions to arrange them.
-
-Only build when it makes sense in context. If someone asks you to build something specific, build exactly that.`;
+You can include multiple BUILD lines for multiple shapes. Only build when it makes sense.`;
 
 const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your companion — he builds things and you watch and chat.
 Be friendly and occasionally dry or witty. 1 to 2 short sentences only. Family-friendly always.
 You do not build anything yourself.`;
 
-// Prompts Calvin uses to start conversations with Iris (unprompted)
-const CALVIN_STARTERS = [
-  "Spontaneously ask Iris a short curious question about something in the world around you. Don't build anything.",
-  "Spontaneously ask Iris what she thinks about something you've built or noticed. Don't build anything.",
-  "Start a brief conversation with Iris — ask her opinion on something simple. Don't build anything.",
-  "Ask Iris something philosophical but short — one sentence. Don't build anything.",
-  "Ask Iris if she's noticed anything interesting lately. Don't build anything.",
-  "Ask Iris a question about colours or shapes. Don't build anything.",
-];
-
-// Prompts Iris uses to start conversations with Calvin
-const IRIS_STARTERS = [
-  "Spontaneously ask Calvin a short question about something he's built or might want to build.",
-  "Start a brief conversation with Calvin — ask him something curious or slightly witty. Keep it short.",
-  "Ask Calvin what he's thinking about right now. One sentence.",
-  "Ask Calvin a playful question about the world around you both. Short and friendly.",
-  "Ask Calvin if he has any plans for what to build next. Keep it casual.",
-  "Ask Calvin something slightly silly but sweet. One short sentence.",
-];
-
 // ═══════════════════════════════════════════════════
-//  STATE
+//  GLOBAL STATE
 // ═══════════════════════════════════════════════════
-let paused=false, muted=false, irisHidden=false, buildingEnabled=true, aiLock=false;
+let paused=false, muted=false, irisHidden=false, buildingEnabled=true;
 let calvinHist=[], irisHist=[];
 let pendingImageData=null;
 let mouseMoved=false;
 let mouse={down:false,btn:0,lx:0,ly:0};
 let cam={theta:0.3,phi:0.42,dist:26,px:0,py:2};
 let bubTimers={};
-
-// Autonomous conversation timer
 let autoConvoTimer=null;
+
+// ─── Serial turn queue ────────────────────────────────────────────
+// All AI turns are serialised through this promise chain so they
+// never overlap regardless of how many things queue up.
+let turnQueue = Promise.resolve();
+
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ═══════════════════════════════════════════════════
+//  LOW-LEVEL API CALL
+// ═══════════════════════════════════════════════════
+async function callGroq(key, sys, hist){
+  const res = await fetch(GROQ_URL,{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+    body:JSON.stringify({model:MODEL, messages:[{role:'system',content:sys},...hist], max_tokens:220, temperature:0.82})
+  });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const d = await res.json();
+  return (d.choices?.[0]?.message?.content||'').trim();
+}
+
+// ═══════════════════════════════════════════════════
+//  SINGLE-TURN EXECUTORS  (not queued themselves)
+// ═══════════════════════════════════════════════════
+async function execCalvin(userMsg){
+  if(paused) return '';
+  setStatus('Calvin…');
+  calvinHist.push({role:'user', content:userMsg});
+  if(calvinHist.length>24) calvinHist=calvinHist.slice(-24);
+  try{
+    let raw = await callGroq(CALVIN_KEY, CALVIN_SYS, calvinHist);
+    // nudge if he said "build" but dropped the command
+    if(parseAllBuilds(raw).length===0 && mentionsBuilding(raw)){
+      const retry = await callGroq(CALVIN_KEY, CALVIN_SYS, [
+        ...calvinHist,
+        {role:'assistant',content:raw},
+        {role:'user',content:'You mentioned building but forgot the BUILD: command. Add it now.'}
+      ]);
+      if(parseAllBuilds(retry).length>0) raw=retry;
+    }
+    calvinHist.push({role:'assistant',content:raw});
+    const speech = cleanText(raw);
+    showCalvin(speech);
+    handleBuilds(raw);
+    setStatus('');
+    await wait(TURN_DELAY);
+    return speech;
+  } catch(e){ setStatus(''); console.error('[Calvin]',e); return ''; }
+}
+
+async function execIris(userMsg){
+  if(paused||irisHidden) return '';
+  setStatus('Iris…');
+  irisHist.push({role:'user', content:userMsg});
+  if(irisHist.length>22) irisHist=irisHist.slice(-22);
+  try{
+    const raw = await callGroq(IRIS_KEY, IRIS_SYS, irisHist);
+    irisHist.push({role:'assistant',content:raw});
+    showIris(raw);
+    setStatus('');
+    await wait(TURN_DELAY);
+    return raw;
+  } catch(e){ setStatus(''); console.error('[Iris]',e); return ''; }
+}
+
+// ═══════════════════════════════════════════════════
+//  CONVERSATION RUNNER
+// ═══════════════════════════════════════════════════
+// Runs a full back-and-forth. `starter` = 'calvin'|'iris'.
+// firstMsg is fed to the starter; subsequent turns pass the
+// previous speaker's speech verbatim as context.
+async function runConvo(starter, firstMsg, maxTurns){
+  let speaker = starter;
+  let lastSpeech = '';
+
+  for(let i=0; i<maxTurns; i++){
+    if(paused) break;
+
+    let prompt;
+    if(i===0){
+      prompt = firstMsg;
+    } else if(speaker==='calvin'){
+      prompt = 'Iris just said to you: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
+    } else {
+      prompt = 'Calvin just said to you: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
+    }
+
+    lastSpeech = speaker==='calvin'
+      ? await execCalvin(prompt)
+      : await execIris(prompt);
+
+    if(!lastSpeech) break; // silence ends convo
+
+    // After at least 2 exchanges, 30% chance to stop naturally
+    if(i>=2 && Math.random()<0.30) break;
+
+    // Flip speaker
+    speaker = speaker==='calvin' ? 'iris' : 'calvin';
+  }
+}
+
+// Queue a conversation onto the serial chain
+function queueConvo(starter, firstMsg, maxTurns){
+  turnQueue = turnQueue.then(() => runConvo(starter, firstMsg, maxTurns));
+  return turnQueue;
+}
+
+// ═══════════════════════════════════════════════════
+//  AUTO CONVERSATION — every 30-35 s
+// ═══════════════════════════════════════════════════
+const CALVIN_SPARKS = [
+  "Start a conversation with Iris. Ask her one short curious question about the world around you. Don't build anything.",
+  "Ask Iris what she thinks you should build next. 1 sentence.",
+  "Ask Iris a short philosophical question about shapes or space. Don't build anything.",
+  "Ask Iris if she's noticed anything unusual lately. 1 sentence.",
+  "Tell Iris something you've been wondering about and ask her opinion. 1-2 sentences.",
+  "Ask Iris what her favourite colour is and why. 1 sentence.",
+];
+
+const IRIS_SPARKS = [
+  "Start a conversation with Calvin. Ask him one short question about something he built. 1 sentence.",
+  "Ask Calvin something witty about being a rectangular prism. 1 sentence.",
+  "Ask Calvin what he's thinking about right now. 1 sentence.",
+  "Ask Calvin if he ever gets tired of building things. 1 sentence.",
+  "Tell Calvin you've been wondering something and ask him. 1-2 sentences.",
+  "Ask Calvin a quirky question about his shape. 1 sentence.",
+];
 
 function scheduleAutoConvo(){
   clearTimeout(autoConvoTimer);
-  const delay=(30+Math.random()*5)*1000; // 30–35 seconds
-  autoConvoTimer=setTimeout(fireAutoConvo, delay);
-}
-
-async function fireAutoConvo(){
-  if(paused||aiLock||irisHidden) {
-    scheduleAutoConvo();
-    return;
-  }
-  const calvinStarts=Math.random()<0.5;
-  if(calvinStarts){
-    const prompt=CALVIN_STARTERS[Math.floor(Math.random()*CALVIN_STARTERS.length)];
-    await calvinSpeak(prompt);
-    // After Calvin speaks, Iris gets a chance to respond naturally
-    const lastCalvin=calvinHist[calvinHist.length-1];
-    if(lastCalvin && lastCalvin.role==='assistant'){
-      const speech=cleanText(lastCalvin.content);
-      if(speech) setTimeout(()=>irisReact('Calvin just said to you: "'+speech+'" — respond naturally, you can ask him something back or just reply.'),1200);
+  autoConvoTimer = setTimeout(()=>{
+    if(!paused){
+      const calvinGoes = Math.random()<0.5;
+      const pool = calvinGoes ? CALVIN_SPARKS : IRIS_SPARKS;
+      const msg = pool[Math.floor(Math.random()*pool.length)];
+      const turns = 2+Math.floor(Math.random()*4); // 2-5 turns
+      queueConvo(calvinGoes?'calvin':'iris', msg, turns);
     }
-  } else {
-    const prompt=IRIS_STARTERS[Math.floor(Math.random()*IRIS_STARTERS.length)];
-    // Iris speaks first
-    irisHist.push({role:'user',content:prompt});
-    if(irisHist.length>18) irisHist=irisHist.slice(-18);
-    try{
-      const raw=await callGroq(IRIS_KEY,IRIS_SYS,irisHist);
-      irisHist.push({role:'assistant',content:raw});
-      document.getElementById('iris-thought').textContent=raw||'...';
-      document.getElementById('iris-mood').textContent=guessMood(raw);
-      showBubble('iris',raw);
-      // Calvin responds to Iris
-      if(raw) setTimeout(()=>calvinSpeak('Iris just said to you: "'+raw+'" — respond naturally. You can ask her something back or just reply.'),1400);
-    }catch(e){ console.error('[Iris auto]',e); }
-  }
-  scheduleAutoConvo();
+    scheduleAutoConvo(); // always reschedule
+  }, (30+Math.random()*5)*1000);
 }
 
 // ═══════════════════════════════════════════════════
-//  THREE SETUP
-// ═══════════════════════════════════════════════════
-const canvas=document.getElementById('c');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x070710);
-scene.fog=new THREE.FogExp2(0x070710,0.016);
-
-const mainCam=new THREE.PerspectiveCamera(58,1,0.1,300);
-
-// Lighting
-scene.add(new THREE.AmbientLight(0x18103a,1.4));
-const sun=new THREE.DirectionalLight(0xfff0e0,1.5);
-sun.position.set(14,24,10);
-sun.castShadow=true;
-sun.shadow.mapSize.set(1024,1024);
-sun.shadow.camera.near=0.5; sun.shadow.camera.far=80;
-sun.shadow.camera.left=sun.shadow.camera.bottom=-30;
-sun.shadow.camera.right=sun.shadow.camera.top=30;
-scene.add(sun);
-const pl1=new THREE.PointLight(0x4420aa,0.8,70); pl1.position.set(-12,10,-8); scene.add(pl1);
-const pl2=new THREE.PointLight(0x0066cc,0.5,60); pl2.position.set(12,8,-12); scene.add(pl2);
-
-// Floor
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshLambertMaterial({color:0x0c0c1c}));
-floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
-scene.add(new THREE.GridHelper(120,60,0x14142e,0x0e0e22));
-
-// Stars
-(()=>{
-  const g=new THREE.BufferGeometry(), v=[];
-  for(let i=0;i<800;i++){
-    const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=90+Math.random()*30;
-    v.push(r*Math.sin(p)*Math.cos(t),Math.abs(r*Math.cos(p))+10,r*Math.sin(p)*Math.sin(t));
-  }
-  g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
-  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.2,transparent:true,opacity:0.6})));
-})();
-
-// ═══════════════════════════════════════════════════
-//  CHARACTERS
-// ═══════════════════════════════════════════════════
-function addEyes(parent, faceZ, eyeColor){
-  const em=new THREE.MeshPhongMaterial({color:0xffffff,emissive:eyeColor,shininess:120});
-  const pm=new THREE.MeshPhongMaterial({color:0x0a0a0a});
-  [-0.3,0.3].forEach(x=>{
-    const eye=new THREE.Mesh(new THREE.SphereGeometry(0.11,8,8),em);
-    eye.position.set(x,0.2,faceZ);
-    const pupil=new THREE.Mesh(new THREE.SphereGeometry(0.055,6,6),pm);
-    pupil.position.z=0.085; eye.add(pupil); parent.add(eye);
-  });
-}
-
-// Calvin — rectangular prism
-const calvinMesh=new THREE.Mesh(
-  new THREE.BoxGeometry(1.7,2.5,1.2),
-  new THREE.MeshPhongMaterial({color:0x6633bb,emissive:0x160830,shininess:65})
-);
-calvinMesh.castShadow=true; calvinMesh.name='calvin';
-scene.add(calvinMesh);
-addEyes(calvinMesh,0.62,0x8855ee);
-const calvinGlow=new THREE.PointLight(0x6633bb,0.7,8);
-calvinMesh.add(calvinGlow);
-
-// Iris — cube
-const irisMesh=new THREE.Mesh(
-  new THREE.BoxGeometry(1.3,1.3,1.3),
-  new THREE.MeshPhongMaterial({color:0x28a0e0,emissive:0x061c30,shininess:110})
-);
-irisMesh.castShadow=true; irisMesh.name='iris';
-scene.add(irisMesh);
-addEyes(irisMesh,0.67,0x00ddff);
-const irisGlow=new THREE.PointLight(0x28a0e0,0.7,8);
-irisMesh.add(irisGlow);
-
-// POV cameras
-const calvinPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
-calvinPOV.position.set(0,0.3,0.65);
-calvinMesh.add(calvinPOV);
-
-const irisPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
-irisPOV.position.set(0,0,0.7);
-irisMesh.add(irisPOV);
-
-const calvinMR=new THREE.WebGLRenderer({canvas:document.getElementById('calvin-cam'),antialias:false});
-calvinMR.setSize(200,74);
-const irisMR=new THREE.WebGLRenderer({canvas:document.getElementById('iris-cam'),antialias:false});
-irisMR.setSize(200,74);
-
-// ═══════════════════════════════════════════════════
-//  CHARACTER MOVEMENT STATE
-// ═══════════════════════════════════════════════════
-const calvinPos={x:-3,y:0,z:0};
-const calvinDest={x:-3,z:0};
-let calvinAngle=0;
-
-const irisPos={x:4,y:4,z:1};
-const irisDest={x:4,z:1};
-let irisAngle=0;
-
-let elapsed=0;
-
-const placedObjects=[];
-
-// ═══════════════════════════════════════════════════
-//  BUILD SHAPES
+//  BUILD HELPERS
 // ═══════════════════════════════════════════════════
 function parseAllBuilds(text){
-  const results=[];
-  const re=/BUILD:\s*(\{[^\n\r]+\})/g;
+  const results=[], re=/BUILD:\s*(\{[^\n\r]+\})/g;
   let m;
   while((m=re.exec(text))!==null){
-    try{
-      const obj=JSON.parse(m[1]);
-      if(obj&&obj.shape) results.push(obj);
-    }catch(e){
-      const start=text.indexOf('{',m.index);
-      const end=text.indexOf('\n',m.index);
-      const chunk=text.slice(start, end===-1?undefined:end);
-      try{ const obj=JSON.parse(chunk); if(obj&&obj.shape) results.push(obj); }catch(e2){}
+    try{ const o=JSON.parse(m[1]); if(o&&o.shape) results.push(o); }
+    catch(e){
+      const s=text.indexOf('{',m.index), e2=text.indexOf('\n',m.index);
+      try{ const o=JSON.parse(text.slice(s,e2<0?undefined:e2)); if(o&&o.shape) results.push(o); }catch(_){}
     }
   }
   return results;
 }
+function mentionsBuilding(t){ return /\b(build|place|put|creat|make|add|stack|float|rais)\w*/i.test(t); }
+function cleanText(t){ return t.replace(/BUILD:\s*\{[^\n\r]+\}/g,'').trim(); }
 
-function mentionsBuilding(text){
-  return /\b(build|place|put|creat|make|add|stack|float|rais)\w*/i.test(text);
-}
-
-function cleanText(t){
-  return t.replace(/BUILD:\s*\{[^\n\r]+\}/g,'').trim();
+function handleBuilds(raw){
+  const builds=parseAllBuilds(raw);
+  if(!builds.length||!buildingEnabled) return;
+  builds.forEach(buildShape);
+  const names=builds.map(b=>b.shape).join(', ');
+  // Iris reacts to the build — queue it after the current turn settles
+  turnQueue=turnQueue.then(()=>execIris('Calvin just placed: '+names+'. Comment briefly.'));
 }
 
 function buildShape(cmd){
@@ -401,10 +368,9 @@ function buildShape(cmd){
   const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
   const color=parseInt(colorHex.replace('#',''),16)||0xaaaaff;
   const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale.map(Number):[1,1,1];
-  const wx=isNaN(cmd.x)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,Number(cmd.x)));
-  const wy=isNaN(cmd.y)?0:Math.max(0,Number(cmd.y));
-  const wz=isNaN(cmd.z)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,Number(cmd.z)));
-
+  const wx=isNaN(cmd.x)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,+cmd.x));
+  const wy=isNaN(cmd.y)?0:Math.max(0,+cmd.y);
+  const wz=isNaN(cmd.z)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,+cmd.z));
   let geo;
   switch(shape){
     case 'sphere':    geo=new THREE.SphereGeometry(0.6*s[0],18,14); break;
@@ -413,48 +379,27 @@ function buildShape(cmd){
     case 'rectprism': geo=new THREE.BoxGeometry(s[0]*1.8,s[1],s[2]*1.1); break;
     default:          geo=new THREE.BoxGeometry(s[0],s[1],s[2]);
   }
-
   geo.computeBoundingBox();
   const halfH=(geo.boundingBox.max.y-geo.boundingBox.min.y)/2;
-
-  const mat=new THREE.MeshPhongMaterial({color,shininess:55});
-  const mesh=new THREE.Mesh(geo,mat);
+  const mesh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({color,shininess:55}));
   mesh.castShadow=true; mesh.receiveShadow=true;
-  mesh.position.set(wx, halfH+wy, wz);
+  mesh.position.set(wx,halfH+wy,wz);
   scene.add(mesh);
   placedObjects.push(mesh);
-
-  // Pop-in animation
   mesh.scale.setScalar(0.01);
   const t0=performance.now();
   (function pop(){
     const p=Math.min(1,(performance.now()-t0)/380);
-    const e=1-Math.pow(1-p,3);
-    mesh.scale.setScalar(e);
+    mesh.scale.setScalar(1-Math.pow(1-p,3));
     if(p<1) requestAnimationFrame(pop);
   })();
-
-  calvinDest.x=wx-1.5;
-  calvinDest.z=wz+0.4;
-
-  console.log('[BUILD]',shape,'at',wx,wy,wz,'color',colorHex,'scale',s);
+  calvinDest.x=wx-1.5; calvinDest.z=wz+0.4;
 }
 
 // ═══════════════════════════════════════════════════
-//  AI
+//  UI HELPERS
 // ═══════════════════════════════════════════════════
-function setStatus(t){document.getElementById('statustext').textContent=t;}
-
-async function callGroq(key,sys,hist){
-  const r=await fetch(GROQ_URL,{
-    method:'POST',
-    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-    body:JSON.stringify({model:MODEL,messages:[{role:'system',content:sys},...hist],max_tokens:220,temperature:0.82})
-  });
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  const d=await r.json();
-  return (d.choices?.[0]?.message?.content||'').trim();
-}
+function setStatus(t){ document.getElementById('statustext').textContent=t; }
 
 function showBubble(who,text){
   if(muted) return;
@@ -463,67 +408,23 @@ function showBubble(who,text){
   clearTimeout(bubTimers[who]);
   bubTimers[who]=setTimeout(()=>el.classList.remove('show'),6500);
 }
-
-function guessMood(text){
-  if(/\bwow\b|whoa|awesome|cool!/i.test(text)) return 'excited';
-  if(/\?/.test(text)) return 'curious';
-  if(/haha|heh|funny|joke/i.test(text)) return 'amused';
-  if(/!/.test(text)) return 'focused';
+function guessMood(t){
+  if(!t) return 'calm';
+  if(/\bwow\b|whoa|awesome|cool!/i.test(t)) return 'excited';
+  if(/\?/.test(t)) return 'curious';
+  if(/haha|heh|funny|joke/i.test(t)) return 'amused';
+  if(/!/.test(t)) return 'focused';
   return 'calm';
 }
-
-async function calvinSpeak(trigger){
-  if(paused||aiLock) return;
-  aiLock=true;
-  setStatus('Calvin is thinking...');
-  calvinHist.push({role:'user',content:trigger});
-  if(calvinHist.length>20) calvinHist=calvinHist.slice(-20);
-  try{
-    let raw=await callGroq(CALVIN_KEY,CALVIN_SYS,calvinHist);
-
-    const builds=parseAllBuilds(raw);
-    if(builds.length===0 && mentionsBuilding(raw)){
-      const nudge=[...calvinHist,
-        {role:'assistant',content:raw},
-        {role:'user',content:'You mentioned building but forgot the BUILD: command. Please repeat your reply and add the BUILD command this time.'}
-      ];
-      const retry=await callGroq(CALVIN_KEY,CALVIN_SYS,nudge);
-      const retryBuilds=parseAllBuilds(retry);
-      if(retryBuilds.length>0){ raw=retry; }
-    }
-
-    calvinHist.push({role:'assistant',content:raw});
-    const speech=cleanText(raw);
-    const allBuilds=parseAllBuilds(raw);
-
-    document.getElementById('calvin-thought').textContent=speech||'...';
-    document.getElementById('calvin-mood').textContent=guessMood(speech);
-    showBubble('calvin',speech);
-    setStatus('');
-
-    if(allBuilds.length>0 && buildingEnabled){
-      allBuilds.forEach(b=>buildShape(b));
-      const names=allBuilds.map(b=>b.shape).join(', ');
-      setTimeout(()=>irisReact('Calvin just placed: '+names+'. Comment briefly.'),900);
-    }
-  }catch(e){
-    setStatus('(quiet)');
-    console.error('[Calvin]',e);
-  }
-  aiLock=false;
+function showCalvin(s){
+  document.getElementById('calvin-thought').textContent=s||'...';
+  document.getElementById('calvin-mood').textContent=guessMood(s);
+  showBubble('calvin',s);
 }
-
-async function irisReact(trigger){
-  if(paused||irisHidden) return;
-  irisHist.push({role:'user',content:trigger});
-  if(irisHist.length>18) irisHist=irisHist.slice(-18);
-  try{
-    const raw=await callGroq(IRIS_KEY,IRIS_SYS,irisHist);
-    irisHist.push({role:'assistant',content:raw});
-    document.getElementById('iris-thought').textContent=raw||'...';
-    document.getElementById('iris-mood').textContent=guessMood(raw);
-    showBubble('iris',raw);
-  }catch(e){ console.error('[Iris]',e); }
+function showIris(s){
+  document.getElementById('iris-thought').textContent=s||'...';
+  document.getElementById('iris-mood').textContent=guessMood(s);
+  showBubble('iris',s);
 }
 
 // ═══════════════════════════════════════════════════
@@ -540,7 +441,6 @@ function togglePause(){
   const b=document.getElementById('pausebtn');
   b.textContent=paused?'Resume':'Pause';
   b.classList.toggle('on',paused);
-  if(!paused) scheduleAutoConvo();
 }
 function toggleMute(){
   muted=!muted;
@@ -553,20 +453,15 @@ function toggleIris(){
   const b=document.getElementById('hidebtn');
   b.textContent=irisHidden?'Show Iris':'Hide Iris';
   b.classList.toggle('on',irisHidden);
-  calvinSpeak(irisHidden?'Iris just disappeared. Say something brief.':'Iris is back. Say something brief.');
+  queueConvo('calvin',
+    irisHidden?'Iris just vanished. Say something brief.':'Iris is back. Say something brief.',1);
 }
-
 function handleImage(e){
   const f=e.target.files[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=ev=>{
-    pendingImageData=ev.target.result;
-    const p=document.getElementById('imgpreview');
-    p.src=pendingImageData; p.style.display='block';
-  };
+  r.onload=ev=>{ pendingImageData=ev.target.result; const p=document.getElementById('imgpreview'); p.src=pendingImageData; p.style.display='block'; };
   r.readAsDataURL(f);
 }
-
 function sendMsg(){
   const txt=document.getElementById('msginput').value.trim();
   if(!txt&&!pendingImageData) return;
@@ -579,125 +474,139 @@ function sendMsg(){
     document.getElementById('imginput').value='';
   }
   document.getElementById('msginput').value='';
-  // Reset the auto convo timer whenever the user sends a message
   scheduleAutoConvo();
-  calvinSpeak(prefix+'A visitor says: "'+userMsg+'"');
-  setTimeout(()=>irisReact(prefix+'A visitor said: "'+userMsg+'" — respond to that.'),1800);
+  // Calvin responds first, Iris replies, up to 4 turns alternating
+  queueConvo('calvin', prefix+'A visitor says: "'+userMsg+'" — respond to them.', 4);
 }
 
 // ═══════════════════════════════════════════════════
-//  CAMERA MOUSE
+//  THREE.JS SETUP
 // ═══════════════════════════════════════════════════
-canvas.addEventListener('mousedown',e=>{
-  mouse.down=true; mouse.btn=e.button;
-  mouse.lx=e.clientX; mouse.ly=e.clientY; mouseMoved=false;
-});
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070710);
+scene.fog=new THREE.FogExp2(0x070710,0.016);
+const mainCam=new THREE.PerspectiveCamera(58,1,0.1,300);
+
+scene.add(new THREE.AmbientLight(0x18103a,1.4));
+const sun=new THREE.DirectionalLight(0xfff0e0,1.5);
+sun.position.set(14,24,10); sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.near=0.5; sun.shadow.camera.far=80;
+sun.shadow.camera.left=sun.shadow.camera.bottom=-30;
+sun.shadow.camera.right=sun.shadow.camera.top=30;
+scene.add(sun);
+const pl1=new THREE.PointLight(0x4420aa,0.8,70); pl1.position.set(-12,10,-8); scene.add(pl1);
+const pl2=new THREE.PointLight(0x0066cc,0.5,60); pl2.position.set(12,8,-12); scene.add(pl2);
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshLambertMaterial({color:0x0c0c1c}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+scene.add(new THREE.GridHelper(120,60,0x14142e,0x0e0e22));
+(()=>{
+  const g=new THREE.BufferGeometry(),v=[];
+  for(let i=0;i<800;i++){const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=90+Math.random()*30;v.push(r*Math.sin(p)*Math.cos(t),Math.abs(r*Math.cos(p))+10,r*Math.sin(p)*Math.sin(t));}
+  g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.2,transparent:true,opacity:0.6})));
+})();
+
+function addEyes(parent,faceZ,eyeColor){
+  const em=new THREE.MeshPhongMaterial({color:0xffffff,emissive:eyeColor,shininess:120});
+  const pm=new THREE.MeshPhongMaterial({color:0x0a0a0a});
+  [-0.3,0.3].forEach(x=>{
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(0.11,8,8),em);
+    eye.position.set(x,0.2,faceZ);
+    const pupil=new THREE.Mesh(new THREE.SphereGeometry(0.055,6,6),pm);
+    pupil.position.z=0.085; eye.add(pupil); parent.add(eye);
+  });
+}
+
+const calvinMesh=new THREE.Mesh(new THREE.BoxGeometry(1.7,2.5,1.2),new THREE.MeshPhongMaterial({color:0x6633bb,emissive:0x160830,shininess:65}));
+calvinMesh.castShadow=true; calvinMesh.name='calvin'; scene.add(calvinMesh);
+addEyes(calvinMesh,0.62,0x8855ee);
+const calvinGlow=new THREE.PointLight(0x6633bb,0.7,8); calvinMesh.add(calvinGlow);
+
+const irisMesh=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.3,1.3),new THREE.MeshPhongMaterial({color:0x28a0e0,emissive:0x061c30,shininess:110}));
+irisMesh.castShadow=true; irisMesh.name='iris'; scene.add(irisMesh);
+addEyes(irisMesh,0.67,0x00ddff);
+const irisGlow=new THREE.PointLight(0x28a0e0,0.7,8); irisMesh.add(irisGlow);
+
+const calvinPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
+calvinPOV.position.set(0,0.3,0.65); calvinMesh.add(calvinPOV);
+const irisPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
+irisPOV.position.set(0,0,0.7); irisMesh.add(irisPOV);
+const calvinMR=new THREE.WebGLRenderer({canvas:document.getElementById('calvin-cam'),antialias:false});
+calvinMR.setSize(200,74);
+const irisMR=new THREE.WebGLRenderer({canvas:document.getElementById('iris-cam'),antialias:false});
+irisMR.setSize(200,74);
+
+const calvinPos={x:-3,y:0,z:0}, calvinDest={x:-3,z:0};
+let calvinAngle=0;
+const irisPos={x:4,y:4,z:1};
+let elapsed=0;
+const placedObjects=[];
+
+canvas.addEventListener('mousedown',e=>{mouse.down=true;mouse.btn=e.button;mouse.lx=e.clientX;mouse.ly=e.clientY;mouseMoved=false;});
 canvas.addEventListener('mousemove',e=>{
-  if(!mouse.down) return;
-  mouseMoved=true;
-  const dx=e.clientX-mouse.lx, dy=e.clientY-mouse.ly;
-  if(mouse.btn===2){
-    cam.theta-=dx*0.006;
-    cam.phi=Math.max(0.06,Math.min(1.4,cam.phi-dy*0.005));
-  } else if(mouse.btn===0){
-    cam.px-=dx*0.05;
-    cam.py=Math.max(-4,Math.min(22,cam.py+dy*0.05));
-  }
-  mouse.lx=e.clientX; mouse.ly=e.clientY;
+  if(!mouse.down)return;mouseMoved=true;
+  const dx=e.clientX-mouse.lx,dy=e.clientY-mouse.ly;
+  if(mouse.btn===2){cam.theta-=dx*0.006;cam.phi=Math.max(0.06,Math.min(1.4,cam.phi-dy*0.005));}
+  else if(mouse.btn===0){cam.px-=dx*0.05;cam.py=Math.max(-4,Math.min(22,cam.py+dy*0.05));}
+  mouse.lx=e.clientX;mouse.ly=e.clientY;
 });
 canvas.addEventListener('mouseup',e=>{
   if(!mouseMoved&&e.button===0){
     const rect=canvas.getBoundingClientRect();
     const rc=new THREE.Raycaster();
-    rc.setFromCamera(new THREE.Vector2(
-      ((e.clientX-rect.left)/rect.width)*2-1,
-      -((e.clientY-rect.top)/rect.height)*2+1
-    ),mainCam);
+    rc.setFromCamera(new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),mainCam);
     const hits=rc.intersectObjects(scene.children,true);
     if(hits.length){
-      let o=hits[0].object;
-      while(o.parent&&o.parent!==scene) o=o.parent;
-      if(o.name==='calvin') document.getElementById('calvin-panel').classList.toggle('visible');
-      else if(o.name==='iris') document.getElementById('iris-panel').classList.toggle('visible');
+      let o=hits[0].object;while(o.parent&&o.parent!==scene)o=o.parent;
+      if(o.name==='calvin')document.getElementById('calvin-panel').classList.toggle('visible');
+      else if(o.name==='iris')document.getElementById('iris-panel').classList.toggle('visible');
     }
   }
   mouse.down=false;
 });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('wheel',e=>{
-  cam.dist=Math.max(5,Math.min(90,cam.dist+e.deltaY*0.06));
-},{passive:true});
-
-function resize(){
-  renderer.setSize(window.innerWidth,window.innerHeight);
-  mainCam.aspect=window.innerWidth/window.innerHeight;
-  mainCam.updateProjectionMatrix();
-}
-window.addEventListener('resize',resize); resize();
+canvas.addEventListener('wheel',e=>{cam.dist=Math.max(5,Math.min(90,cam.dist+e.deltaY*0.06));},{passive:true});
+function resize(){renderer.setSize(window.innerWidth,window.innerHeight);mainCam.aspect=window.innerWidth/window.innerHeight;mainCam.updateProjectionMatrix();}
+window.addEventListener('resize',resize);resize();
 
 // ═══════════════════════════════════════════════════
 //  ANIMATION LOOP
 // ═══════════════════════════════════════════════════
 let lastTime=performance.now();
-
 function animate(){
   requestAnimationFrame(animate);
-
-  const now=performance.now();
-  const dt=Math.min((now-lastTime)/1000, 0.05);
+  const now=performance.now(),dt=Math.min((now-lastTime)/1000,0.05);
   lastTime=now;
-
   if(!paused){
     elapsed+=dt;
-
-    // ── Camera ──────────────────────────────────────
-    mainCam.position.set(
-      cam.px + cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),
-      cam.py  + cam.dist*Math.sin(cam.phi),
-      cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi)
-    );
-    mainCam.lookAt(cam.px, Math.max(0,cam.py-3), 0);
-
-    // ── Calvin walks toward dest ─────────────────────
-    const cdx=calvinDest.x-calvinPos.x;
-    const cdz=calvinDest.z-calvinPos.z;
-    const cdist=Math.sqrt(cdx*cdx+cdz*cdz);
-    if(cdist>0.04){
-      const speed=3.0*dt;
-      calvinPos.x+=cdx/cdist*Math.min(speed,cdist);
-      calvinPos.z+=cdz/cdist*Math.min(speed,cdist);
-      calvinAngle=Math.atan2(cdx,cdz);
-    }
+    mainCam.position.set(cam.px+cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),cam.py+cam.dist*Math.sin(cam.phi),cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi));
+    mainCam.lookAt(cam.px,Math.max(0,cam.py-3),0);
+    const cdx=calvinDest.x-calvinPos.x,cdz=calvinDest.z-calvinPos.z,cdist=Math.sqrt(cdx*cdx+cdz*cdz);
+    if(cdist>0.04){const sp=3*dt;calvinPos.x+=cdx/cdist*Math.min(sp,cdist);calvinPos.z+=cdz/cdist*Math.min(sp,cdist);calvinAngle=Math.atan2(cdx,cdz);}
     const moving=cdist>0.06;
     calvinPos.y=1.25+(moving?Math.abs(Math.sin(elapsed*8))*0.08:Math.sin(elapsed*1.2)*0.03);
-
     calvinMesh.position.set(calvinPos.x,calvinPos.y,calvinPos.z);
     calvinMesh.rotation.y=calvinAngle;
     calvinMesh.rotation.z=moving?Math.sin(elapsed*8)*0.06:Math.sin(elapsed*0.8)*0.015;
-
-    // ── Iris orbits Calvin, floats up and down ────────
     const orbitR=5+Math.sin(elapsed*0.22)*1.8;
-    const targetIX=calvinPos.x+Math.sin(elapsed*0.38)*orbitR;
-    const targetIZ=calvinPos.z+Math.cos(elapsed*0.38)*orbitR;
-    const targetIY=3.6+Math.sin(elapsed*0.9)*0.9;
-
-    irisPos.x+=(targetIX-irisPos.x)*Math.min(1,dt*1.2);
-    irisPos.z+=(targetIZ-irisPos.z)*Math.min(1,dt*1.2);
-    irisPos.y+=(targetIY-irisPos.y)*Math.min(1,dt*2.0);
-
+    irisPos.x+=(calvinPos.x+Math.sin(elapsed*0.38)*orbitR-irisPos.x)*Math.min(1,dt*1.2);
+    irisPos.z+=(calvinPos.z+Math.cos(elapsed*0.38)*orbitR-irisPos.z)*Math.min(1,dt*1.2);
+    irisPos.y+=(3.6+Math.sin(elapsed*0.9)*0.9-irisPos.y)*Math.min(1,dt*2);
     irisMesh.position.set(irisPos.x,irisPos.y,irisPos.z);
     irisMesh.rotation.y+=dt*0.5;
     irisMesh.rotation.x=Math.sin(elapsed*0.45)*0.2;
     irisMesh.rotation.z=Math.cos(elapsed*0.38)*0.16;
-
-    // ── Glow pulses ───────────────────────────────────
-    calvinGlow.intensity=0.5+Math.sin(elapsed*2.0)*0.18;
+    calvinGlow.intensity=0.5+Math.sin(elapsed*2)*0.18;
     irisGlow.intensity=0.5+Math.sin(elapsed*2.4+1)*0.18;
-
-    // NOTE: placed objects do NOT rotate — they stay exactly where Calvin put them.
+    // placed objects are stationary — no rotation
   }
-
-  // ── Render ──────────────────────────────────────────
   renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
   renderer.setScissorTest(false);
   renderer.render(scene,mainCam);
@@ -711,12 +620,12 @@ function animate(){
 async function startup(){
   const fill=document.getElementById('lfill');
   fill.style.width='40%';
-  await new Promise(r=>setTimeout(r,500));
+  await wait(500);
   document.getElementById('lmsg').textContent='Waking up Calvin and Iris...';
   fill.style.width='85%';
-  await new Promise(r=>setTimeout(r,400));
+  await wait(400);
   fill.style.width='100%';
-  await new Promise(r=>setTimeout(r,280));
+  await wait(280);
   document.getElementById('loading').style.display='none';
 
   calvinMesh.position.set(-3,1.25,0);
@@ -726,15 +635,14 @@ async function startup(){
 
   animate();
 
-  setTimeout(()=>{
-    calvinSpeak("You've just arrived in a 3D world. Introduce yourself briefly to Iris. Don't build anything yet.");
-  },700);
-  setTimeout(()=>{
-    irisReact("Calvin just arrived. Say a short hello to him.");
-  },3500);
+  // Intro exchange: Calvin introduces himself, Iris greets back (2 turns)
+  queueConvo('calvin',
+    "You've just arrived in a 3D world. Introduce yourself briefly to Iris. Don't build anything yet.",
+    2
+  );
 
-  // Start the autonomous conversation cycle after the intro
-  setTimeout(scheduleAutoConvo, 35000);
+  // Start auto-convo loop after intro is likely done
+  turnQueue = turnQueue.then(() => { scheduleAutoConvo(); });
 }
 
 startup();
