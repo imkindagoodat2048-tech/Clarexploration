@@ -162,43 +162,68 @@ const TURN_DELAY = 2800; // ms pause between turns so bubbles are readable
 const CALVIN_SYS = `You are Calvin, a rectangular prism who lives in a 3D world with his companion Iris (a floating cube).
 Personality: calm, straightforward, thoughtful. Not excitable. Short sentences — 1 to 2 max. Family-friendly always.
 
-You can place shapes in the world using a BUILD command. The BUILD command is what ACTUALLY creates the shape — without it, nothing appears. Words alone do nothing.
+You can manipulate the world using commands placed on their own line at the END of your reply. Words alone do nothing — you MUST include the command to actually change the world.
 
-STRICT RULE: If you mention placing, making, building, or creating anything — you MUST include the BUILD command in that same reply. No exceptions.
+COMMANDS:
 
-BUILD format (one line, at the very end of your reply):
+1. BUILD — place a new shape:
 BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1]}
+  shape: sphere | pyramid | torus | cube | rectprism
+  color: hex string e.g. "#ff4422"
+  x/z: -12 to 12, y: 0=ground, y>0 elevates
+  scale: [width, height, depth]
 
-Fields:
-- shape: sphere | pyramid | torus | cube | rectprism
-- color: hex string
-- x: -12 to 12, y: 0=ground (y>0 elevates), z: -12 to 12
-- scale: [width, height, depth]
+2. DELETE — remove a shape by its id:
+DELETE:{"id":2}
 
-You can include multiple BUILD lines for multiple shapes. Only build when it makes sense.`;
+3. MOVE — move an existing shape to a new position:
+MOVE:{"id":2,"x":5,"y":0,"z":-3}
+
+4. RECOLOR — change an existing shape's color:
+RECOLOR:{"id":2,"color":"#22aaff"}
+
+STRICT RULES:
+- If you mention building/placing/creating → include BUILD command.
+- If you mention deleting/removing → include DELETE command.
+- If you mention moving → include MOVE command.
+- If you mention recoloring/changing color → include RECOLOR command.
+- Multiple commands per reply are fine — one per line at the end.
+- You will be told the current world state (list of shapes with ids) so you can reference them by id.`;
 
 const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your companion — he builds things and you watch and chat.
 Be friendly and occasionally dry or witty. 1 to 2 short sentences only. Family-friendly always.
-You do not build anything yourself.`;
+You do not build or modify anything yourself.`;
 
 // ═══════════════════════════════════════════════════
 //  GLOBAL STATE
 // ═══════════════════════════════════════════════════
 let paused=false, muted=false, irisHidden=false, buildingEnabled=true;
-let calvinHist=[], irisHist=[];
+// Shared conversation history — both characters read the same transcript
+// so each one always knows what the other said.
+// Format: [{role:'user'|'assistant', content:'...', speaker:'calvin'|'iris'|'world'}]
+let sharedHist=[];
 let pendingImageData=null;
 let mouseMoved=false;
 let mouse={down:false,btn:0,lx:0,ly:0};
 let cam={theta:0.3,phi:0.42,dist:26,px:0,py:2};
 let bubTimers={};
 let autoConvoTimer=null;
+let nextObjId=1; // incrementing id for placed objects
 
-// ─── Serial turn queue ────────────────────────────────────────────
-// All AI turns are serialised through this promise chain so they
-// never overlap regardless of how many things queue up.
 let turnQueue = Promise.resolve();
-
 function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ═══════════════════════════════════════════════════
+//  WORLD STATE SUMMARY  (injected into Calvin's context)
+// ═══════════════════════════════════════════════════
+function worldStateSummary(){
+  if(!placedObjects||!placedObjects.length) return 'The world is empty.';
+  return 'Current shapes in world:\n'+placedObjects.map(o=>{
+    const p=o.position;
+    const c='#'+o.material.color.getHexString();
+    return `  id:${o.userData.id} shape:${o.userData.shape} color:${c} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)}`;
+  }).join('\n');
+}
 
 // ═══════════════════════════════════════════════════
 //  LOW-LEVEL API CALL
@@ -207,36 +232,59 @@ async function callGroq(key, sys, hist){
   const res = await fetch(GROQ_URL,{
     method:'POST',
     headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-    body:JSON.stringify({model:MODEL, messages:[{role:'system',content:sys},...hist], max_tokens:220, temperature:0.82})
+    body:JSON.stringify({model:MODEL, messages:[{role:'system',content:sys},...hist], max_tokens:260, temperature:0.82})
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
   const d = await res.json();
   return (d.choices?.[0]?.message?.content||'').trim();
 }
 
+// Build an OpenAI-format history array for a given character.
+// We use the sharedHist but re-label roles so the model sees itself
+// as 'assistant' and the other as 'user' messages.
+function histFor(speaker){
+  const out=[];
+  for(const e of sharedHist){
+    if(e.speaker===speaker){
+      out.push({role:'assistant', content:e.content});
+    } else {
+      // world events and the other character both appear as 'user'
+      out.push({role:'user', content:e.content});
+    }
+  }
+  // Keep last 28 messages
+  return out.slice(-28);
+}
+
 // ═══════════════════════════════════════════════════
-//  SINGLE-TURN EXECUTORS  (not queued themselves)
+//  SINGLE-TURN EXECUTORS
 // ═══════════════════════════════════════════════════
 async function execCalvin(userMsg){
   if(paused) return '';
   setStatus('Calvin…');
-  calvinHist.push({role:'user', content:userMsg});
-  if(calvinHist.length>24) calvinHist=calvinHist.slice(-24);
+  // Inject world state + the incoming message as a single user turn
+  const worldNote = worldStateSummary();
+  const fullMsg = worldNote+'\n\n'+userMsg;
+  sharedHist.push({speaker:'world', content:fullMsg});
+  if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
   try{
-    let raw = await callGroq(CALVIN_KEY, CALVIN_SYS, calvinHist);
-    // nudge if he said "build" but dropped the command
-    if(parseAllBuilds(raw).length===0 && mentionsBuilding(raw)){
-      const retry = await callGroq(CALVIN_KEY, CALVIN_SYS, [
-        ...calvinHist,
-        {role:'assistant',content:raw},
-        {role:'user',content:'You mentioned building but forgot the BUILD: command. Add it now.'}
-      ]);
-      if(parseAllBuilds(retry).length>0) raw=retry;
+    let raw = await callGroq(CALVIN_KEY, CALVIN_SYS, histFor('calvin'));
+    // Nudge if he mentioned an action but forgot the command
+    const needsNudge=(mentionsBuilding(raw)&&parseAllBuilds(raw).length===0)
+                   ||(mentionsDeleting(raw)&&parseAllDeletes(raw).length===0)
+                   ||(mentionsMoving(raw)&&parseAllMoves(raw).length===0)
+                   ||(mentionsRecoloring(raw)&&parseAllRecolors(raw).length===0);
+    if(needsNudge){
+      sharedHist.push({speaker:'calvin', content:raw});
+      sharedHist.push({speaker:'world', content:'You described an action but forgot the command. Add the appropriate command(s) now and repeat your reply briefly.'});
+      const retry = await callGroq(CALVIN_KEY, CALVIN_SYS, histFor('calvin'));
+      sharedHist.pop(); sharedHist.pop(); // remove nudge + bad reply
+      raw = retry;
     }
-    calvinHist.push({role:'assistant',content:raw});
+    sharedHist.push({speaker:'calvin', content:raw});
     const speech = cleanText(raw);
     showCalvin(speech);
-    handleBuilds(raw);
+    handleCommands(raw);
     setStatus('');
     await wait(TURN_DELAY);
     return speech;
@@ -246,11 +294,11 @@ async function execCalvin(userMsg){
 async function execIris(userMsg){
   if(paused||irisHidden) return '';
   setStatus('Iris…');
-  irisHist.push({role:'user', content:userMsg});
-  if(irisHist.length>22) irisHist=irisHist.slice(-22);
+  sharedHist.push({speaker:'world', content:userMsg});
+  if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
   try{
-    const raw = await callGroq(IRIS_KEY, IRIS_SYS, irisHist);
-    irisHist.push({role:'assistant',content:raw});
+    const raw = await callGroq(IRIS_KEY, IRIS_SYS, histFor('iris'));
+    sharedHist.push({speaker:'iris', content:raw});
     showIris(raw);
     setStatus('');
     await wait(TURN_DELAY);
@@ -261,9 +309,6 @@ async function execIris(userMsg){
 // ═══════════════════════════════════════════════════
 //  CONVERSATION RUNNER
 // ═══════════════════════════════════════════════════
-// Runs a full back-and-forth. `starter` = 'calvin'|'iris'.
-// firstMsg is fed to the starter; subsequent turns pass the
-// previous speaker's speech verbatim as context.
 async function runConvo(starter, firstMsg, maxTurns){
   let speaker = starter;
   let lastSpeech = '';
@@ -275,26 +320,21 @@ async function runConvo(starter, firstMsg, maxTurns){
     if(i===0){
       prompt = firstMsg;
     } else if(speaker==='calvin'){
-      prompt = 'Iris just said to you: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
+      prompt = 'Iris just said: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
     } else {
-      prompt = 'Calvin just said to you: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
+      prompt = 'Calvin just said: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
     }
 
     lastSpeech = speaker==='calvin'
       ? await execCalvin(prompt)
       : await execIris(prompt);
 
-    if(!lastSpeech) break; // silence ends convo
-
-    // After at least 2 exchanges, 30% chance to stop naturally
+    if(!lastSpeech) break;
     if(i>=2 && Math.random()<0.30) break;
-
-    // Flip speaker
     speaker = speaker==='calvin' ? 'iris' : 'calvin';
   }
 }
 
-// Queue a conversation onto the serial chain
 function queueConvo(starter, firstMsg, maxTurns){
   turnQueue = turnQueue.then(() => runConvo(starter, firstMsg, maxTurns));
   return turnQueue;
@@ -304,19 +344,18 @@ function queueConvo(starter, firstMsg, maxTurns){
 //  AUTO CONVERSATION — every 30-35 s
 // ═══════════════════════════════════════════════════
 const CALVIN_SPARKS = [
-  "Start a conversation with Iris. Ask her one short curious question about the world around you. Don't build anything.",
+  "Start a conversation with Iris. Ask her one short curious question about the world. Don't build anything.",
   "Ask Iris what she thinks you should build next. 1 sentence.",
   "Ask Iris a short philosophical question about shapes or space. Don't build anything.",
   "Ask Iris if she's noticed anything unusual lately. 1 sentence.",
   "Tell Iris something you've been wondering about and ask her opinion. 1-2 sentences.",
   "Ask Iris what her favourite colour is and why. 1 sentence.",
 ];
-
 const IRIS_SPARKS = [
-  "Start a conversation with Calvin. Ask him one short question about something he built. 1 sentence.",
+  "Start a conversation with Calvin. Ask him a short question about something he built. 1 sentence.",
   "Ask Calvin something witty about being a rectangular prism. 1 sentence.",
-  "Ask Calvin what he's thinking about right now. 1 sentence.",
-  "Ask Calvin if he ever gets tired of building things. 1 sentence.",
+  "Ask Calvin what he's thinking about. 1 sentence.",
+  "Ask Calvin if he ever wants to delete something he made. 1 sentence.",
   "Tell Calvin you've been wondering something and ask him. 1-2 sentences.",
   "Ask Calvin a quirky question about his shape. 1 sentence.",
 ];
@@ -328,40 +367,74 @@ function scheduleAutoConvo(){
       const calvinGoes = Math.random()<0.5;
       const pool = calvinGoes ? CALVIN_SPARKS : IRIS_SPARKS;
       const msg = pool[Math.floor(Math.random()*pool.length)];
-      const turns = 2+Math.floor(Math.random()*4); // 2-5 turns
-      queueConvo(calvinGoes?'calvin':'iris', msg, turns);
+      queueConvo(calvinGoes?'calvin':'iris', msg, 2+Math.floor(Math.random()*4));
     }
-    scheduleAutoConvo(); // always reschedule
+    scheduleAutoConvo();
   }, (30+Math.random()*5)*1000);
 }
 
 // ═══════════════════════════════════════════════════
-//  BUILD HELPERS
+//  COMMAND PARSERS
 // ═══════════════════════════════════════════════════
-function parseAllBuilds(text){
-  const results=[], re=/BUILD:\s*(\{[^\n\r]+\})/g;
+function parseCmd(text, keyword){
+  const results=[], re=new RegExp(keyword+':\\s*(\\{[^\\n\\r]+\\})','g');
   let m;
   while((m=re.exec(text))!==null){
-    try{ const o=JSON.parse(m[1]); if(o&&o.shape) results.push(o); }
+    try{ const o=JSON.parse(m[1]); results.push(o); }
     catch(e){
       const s=text.indexOf('{',m.index), e2=text.indexOf('\n',m.index);
-      try{ const o=JSON.parse(text.slice(s,e2<0?undefined:e2)); if(o&&o.shape) results.push(o); }catch(_){}
+      try{ results.push(JSON.parse(text.slice(s,e2<0?undefined:e2))); }catch(_){}
     }
   }
   return results;
 }
-function mentionsBuilding(t){ return /\b(build|place|put|creat|make|add|stack|float|rais)\w*/i.test(t); }
-function cleanText(t){ return t.replace(/BUILD:\s*\{[^\n\r]+\}/g,'').trim(); }
+function parseAllBuilds(t){ return parseCmd(t,'BUILD').filter(o=>o.shape); }
+function parseAllDeletes(t){ return parseCmd(t,'DELETE').filter(o=>o.id!=null); }
+function parseAllMoves(t){ return parseCmd(t,'MOVE').filter(o=>o.id!=null); }
+function parseAllRecolors(t){ return parseCmd(t,'RECOLOR').filter(o=>o.id!=null&&o.color); }
 
-function handleBuilds(raw){
-  const builds=parseAllBuilds(raw);
-  if(!builds.length||!buildingEnabled) return;
-  builds.forEach(buildShape);
-  const names=builds.map(b=>b.shape).join(', ');
-  // Iris reacts to the build — queue it after the current turn settles
-  turnQueue=turnQueue.then(()=>execIris('Calvin just placed: '+names+'. Comment briefly.'));
+function mentionsBuilding(t){ return /\b(build|place|put|creat|make|add|stack|float|rais)\w*/i.test(t); }
+function mentionsDeleting(t){ return /\b(delet|remov|destroy|clear|get rid)\w*/i.test(t); }
+function mentionsMoving(t){ return /\b(mov|shift|push|slide|relocat)\w*/i.test(t); }
+function mentionsRecoloring(t){ return /\b(recolor|repaint|chang.{0,8}colou?r|paint)\w*/i.test(t); }
+
+function cleanText(t){
+  return t
+    .replace(/BUILD:\s*\{[^\n\r]+\}/g,'')
+    .replace(/DELETE:\s*\{[^\n\r]+\}/g,'')
+    .replace(/MOVE:\s*\{[^\n\r]+\}/g,'')
+    .replace(/RECOLOR:\s*\{[^\n\r]+\}/g,'')
+    .trim();
 }
 
+function handleCommands(raw){
+  if(!buildingEnabled) return;
+
+  const builds   = parseAllBuilds(raw);
+  const deletes  = parseAllDeletes(raw);
+  const moves    = parseAllMoves(raw);
+  const recolors = parseAllRecolors(raw);
+
+  builds.forEach(buildShape);
+  deletes.forEach(deleteShape);
+  moves.forEach(moveShape);
+  recolors.forEach(recolorShape);
+
+  const events=[];
+  if(builds.length)   events.push('placed '+builds.map(b=>b.shape).join(', '));
+  if(deletes.length)  events.push('removed shape(s) '+deletes.map(d=>d.id).join(', '));
+  if(moves.length)    events.push('moved shape(s) '+moves.map(m=>m.id).join(', '));
+  if(recolors.length) events.push('recolored shape(s) '+recolors.map(r=>r.id).join(', '));
+
+  if(events.length){
+    const summary = 'Calvin just '+events.join(' and ')+'. Comment briefly.';
+    turnQueue=turnQueue.then(()=>execIris(summary));
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  SHAPE OPERATIONS
+// ═══════════════════════════════════════════════════
 function buildShape(cmd){
   const shape=(cmd.shape||'cube').toLowerCase();
   const colorStr=String(cmd.color||'#aaaaff');
@@ -384,8 +457,11 @@ function buildShape(cmd){
   const mesh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({color,shininess:55}));
   mesh.castShadow=true; mesh.receiveShadow=true;
   mesh.position.set(wx,halfH+wy,wz);
+  mesh.userData.id=nextObjId++;
+  mesh.userData.shape=shape;
   scene.add(mesh);
   placedObjects.push(mesh);
+  // Pop-in
   mesh.scale.setScalar(0.01);
   const t0=performance.now();
   (function pop(){
@@ -394,6 +470,51 @@ function buildShape(cmd){
     if(p<1) requestAnimationFrame(pop);
   })();
   calvinDest.x=wx-1.5; calvinDest.z=wz+0.4;
+}
+
+function deleteShape(cmd){
+  const idx=placedObjects.findIndex(o=>o.userData.id===+cmd.id);
+  if(idx===-1) return;
+  const mesh=placedObjects[idx];
+  // Shrink-out animation then remove
+  const t0=performance.now();
+  (function shrink(){
+    const p=Math.min(1,(performance.now()-t0)/300);
+    mesh.scale.setScalar(1-p);
+    if(p<1){ requestAnimationFrame(shrink); }
+    else { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
+  })();
+  placedObjects.splice(idx,1);
+}
+
+function moveShape(cmd){
+  const mesh=placedObjects.find(o=>o.userData.id===+cmd.id);
+  if(!mesh) return;
+  const tx=isNaN(cmd.x)?mesh.position.x:Math.max(-14,Math.min(14,+cmd.x));
+  const tz=isNaN(cmd.z)?mesh.position.z:Math.max(-14,Math.min(14,+cmd.z));
+  const ty=isNaN(cmd.y)?mesh.position.y:Math.max(0,+cmd.y);
+  // Get half-height from bounding box
+  mesh.geometry.computeBoundingBox();
+  const halfH=(mesh.geometry.boundingBox.max.y-mesh.geometry.boundingBox.min.y)/2;
+  // Animate slide
+  const ox=mesh.position.x, oy=mesh.position.y, oz=mesh.position.z;
+  const nx=tx, ny=halfH+ty, nz=tz;
+  const t0=performance.now();
+  (function slide(){
+    const p=Math.min(1,(performance.now()-t0)/500);
+    const e=1-Math.pow(1-p,3);
+    mesh.position.set(ox+(nx-ox)*e, oy+(ny-oy)*e, oz+(nz-oz)*e);
+    if(p<1) requestAnimationFrame(slide);
+  })();
+  calvinDest.x=tx-1.5; calvinDest.z=tz+0.4;
+}
+
+function recolorShape(cmd){
+  const mesh=placedObjects.find(o=>o.userData.id===+cmd.id);
+  if(!mesh) return;
+  const colorStr=String(cmd.color||'#ffffff');
+  const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
+  mesh.material.color.setHex(parseInt(colorHex.replace('#',''),16));
 }
 
 // ═══════════════════════════════════════════════════
@@ -475,7 +596,6 @@ function sendMsg(){
   }
   document.getElementById('msginput').value='';
   scheduleAutoConvo();
-  // Calvin responds first, Iris replies, up to 4 turns alternating
   queueConvo('calvin', prefix+'A visitor says: "'+userMsg+'" — respond to them.', 4);
 }
 
