@@ -173,20 +173,17 @@ const IRIS_KEY   = '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';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL      = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
-const CALVIN_SYS = `You are Calvin, an enthusiastic rectangular prism living in a colorful 3D world.
-Iris is your best friend, a floating cube. You LOVE building and creating things.
-BE FAMILY-FRIENDLY AT ALL TIMES. Keep replies SHORT (1-2 sentences max).
-When you want to build something, add a BUILD command at the END of your message:
+const CALVIN_SYS = `You are Calvin, a rectangular prism in a 3D world. Iris is your companion cube who floats nearby.
+BE FAMILY-FRIENDLY AT ALL TIMES. Speak in short, calm sentences (1-2 max). Do not be wacky or over-dramatic. Just be normal and grounded.
+When you place or build something, you MUST include a BUILD command on its own line at the end of your message:
 BUILD:{"shape":"cube","color":"#ff6644","position":{"x":2,"y":0,"z":-3},"scale":[1,1,1]}
 Available shapes: sphere, pyramid, torus, cube, rectprism
-Color: any hex. Position x and z: -12 to 12. y: always 0. Scale: [w,h,d] floats.
-For rectprism you can make wide/flat/tall shapes with scale.
-Not every reply needs BUILD — only when you genuinely want to create something new!`;
+Color must be a hex string e.g. "#ff4422". Position x and z must be numbers between -12 and 12. y is always 0. Scale is [w,h,d].
+IMPORTANT: If you say you are building or placing something, you MUST include the BUILD command — without it nothing will appear. Never describe building without the command.
+You do not have to build every reply. But when you do, include the command.`;
 
-const IRIS_SYS = `You are Iris, a witty floating cube and Calvin's best friend in a 3D world.
-You don't build things yourself — you watch Calvin work and crack jokes or cheer him on.
-BE FAMILY-FRIENDLY AT ALL TIMES. Short replies only (1-2 sentences). Be charming and funny.
-Don't announce that you're joking — just naturally be amusing. Ask some questions occasionally, and dont be afraid to be a little bit rude, as long as its comedic and satire, AND FAMILY FRIENDLY.`;
+const IRIS_SYS = `You are Iris, a floating cube. Calvin is your companion — he builds things and you watch and chat.
+BE FAMILY-FRIENDLY AT ALL TIMES. Keep replies to 1-2 short sentences. Be friendly and occasionally witty, but relaxed.`;
 
 // ── STATE ─────────────────────────────────────────────────────────────
 let paused = false, muted = false, irisHidden = false, buildingEnabled = true;
@@ -372,11 +369,29 @@ async function callGroq(key, sysPrompt, hist) {
 }
 
 function parseBuild(text) {
-  const m = text.match(/BUILD:\s*(\{[\s\S]*?\})/);
+  // Match BUILD: followed by a JSON object, possibly multiline
+  const m = text.match(/BUILD:\s*(\{[^]*?\})/);
   if(!m) return null;
-  try { return JSON.parse(m[1]); } catch(e){ return null; }
+  try {
+    const obj = JSON.parse(m[1]);
+    // Validate required fields
+    if(!obj.shape) return null;
+    // Ensure color is a proper hex string
+    if(obj.color && !obj.color.startsWith('#')) obj.color = '#' + obj.color;
+    if(!obj.color) obj.color = '#aaaaff';
+    // Ensure scale is array of 3
+    if(!Array.isArray(obj.scale) || obj.scale.length < 3) obj.scale = [1,1,1];
+    // Ensure position exists
+    if(!obj.position || typeof obj.position.x !== 'number') {
+      obj.position = { x: (Math.random()-0.5)*18, y:0, z: (Math.random()-0.5)*18 };
+    }
+    return obj;
+  } catch(e) {
+    console.warn('BUILD parse failed:', m[1], e);
+    return null;
+  }
 }
-function cleanText(text) { return text.replace(/BUILD:\s*\{[\s\S]*?\}/g,'').trim(); }
+function cleanText(text) { return text.replace(/BUILD:\s*\{[^]*?\}/g,'').trim(); }
 
 function showBubble(who, text) {
   if(muted) return;
@@ -480,16 +495,22 @@ function handleImage(e) {
 function sendMsg() {
   const txt = document.getElementById('msginput').value.trim();
   if(!txt && !pendingImageData) return;
-  let prompt = txt || 'Look at this image!';
+
+  let userMsg = txt || 'Look at this image!';
+  let imgNote = '';
   if(pendingImageData) {
-    prompt = `[An image was shown to you] ${txt || 'Check this out! Maybe it inspires something to build?'}`;
+    imgNote = '[An image was shared with you] ';
     pendingImageData = null;
     document.getElementById('imgpreview').style.display = 'none';
     document.getElementById('imginput').value = '';
   }
   document.getElementById('msginput').value = '';
-  calvinSpeak(prompt);
-  setTimeout(()=>irisReact('The user said: "'+prompt+'" — react to that too!'), 1500);
+
+  const calvinPrompt = imgNote + 'A visitor says to you: "' + userMsg + '"';
+  const irisPrompt   = imgNote + 'A visitor just said to everyone: "' + userMsg + '" — respond to that.';
+
+  calvinSpeak(calvinPrompt);
+  setTimeout(()=>irisReact(irisPrompt), 1800);
 }
 
 // ── CAMERA CONTROL ────────────────────────────────────────────────────
@@ -586,17 +607,17 @@ function animate() {
 
   // Auto-conversation
   autoTimer += dt;
-  if(autoTimer > 20 && !aiLock) {
+  if(autoTimer > 22 && !aiLock) {
     autoTimer = 0;
     const prompts = [
-      'You feel inspired! Build something creative and tell Iris about it.',
-      'Look around your world. Comment on it and maybe add something new.',
-      'You have a fun idea. Build something and explain your vision!',
-      'Say something to Iris, then build something to show off.',
-      'You notice something interesting. React and maybe build something related!',
+      'You feel like building something. Pick a shape, place it, and say what you made.',
+      'Look around at your world. Say something brief about it, and maybe add a new shape.',
+      'You decide to build something new. Place it using the BUILD command and say what it is.',
+      'Say something to Iris about what you want to build next, then build it.',
+      'You want to add something to your world. Build it and describe it in one sentence.',
     ];
     calvinSpeak(prompts[Math.floor(Math.random()*prompts.length)]);
-    setTimeout(()=>irisReact('Calvin is doing something. Say something naturally.'), 2500);
+    setTimeout(()=>irisReact('Calvin just did something in the world. Say something brief about it.'), 3000);
   }
 
   // Render
@@ -624,10 +645,10 @@ async function startup() {
   animate();
 
   setTimeout(()=>{
-    calvinSpeak("You've just woken up in a brand new 3D world for the first time! Introduce yourself, say hi to Iris, and build something to kick things off!");
+    calvinSpeak("You've just arrived in a 3D world. Introduce yourself briefly, then build something to start.");
   }, 600);
   setTimeout(()=>{
-    irisReact("Calvin just woke up in our new world! Say hello and make a little joke about your new home.");
+    irisReact("Calvin just arrived and is getting started. Say a quick hello.");
   }, 3200);
 }
 
