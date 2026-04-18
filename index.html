@@ -184,6 +184,26 @@ const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your co
 Be friendly and occasionally dry or witty. 1 to 2 short sentences only. Family-friendly always.
 You do not build anything yourself.`;
 
+// Prompts Calvin uses to start conversations with Iris (unprompted)
+const CALVIN_STARTERS = [
+  "Spontaneously ask Iris a short curious question about something in the world around you. Don't build anything.",
+  "Spontaneously ask Iris what she thinks about something you've built or noticed. Don't build anything.",
+  "Start a brief conversation with Iris — ask her opinion on something simple. Don't build anything.",
+  "Ask Iris something philosophical but short — one sentence. Don't build anything.",
+  "Ask Iris if she's noticed anything interesting lately. Don't build anything.",
+  "Ask Iris a question about colours or shapes. Don't build anything.",
+];
+
+// Prompts Iris uses to start conversations with Calvin
+const IRIS_STARTERS = [
+  "Spontaneously ask Calvin a short question about something he's built or might want to build.",
+  "Start a brief conversation with Calvin — ask him something curious or slightly witty. Keep it short.",
+  "Ask Calvin what he's thinking about right now. One sentence.",
+  "Ask Calvin a playful question about the world around you both. Short and friendly.",
+  "Ask Calvin if he has any plans for what to build next. Keep it casual.",
+  "Ask Calvin something slightly silly but sweet. One short sentence.",
+];
+
 // ═══════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════
@@ -194,6 +214,48 @@ let mouseMoved=false;
 let mouse={down:false,btn:0,lx:0,ly:0};
 let cam={theta:0.3,phi:0.42,dist:26,px:0,py:2};
 let bubTimers={};
+
+// Autonomous conversation timer
+let autoConvoTimer=null;
+
+function scheduleAutoConvo(){
+  clearTimeout(autoConvoTimer);
+  const delay=(30+Math.random()*5)*1000; // 30–35 seconds
+  autoConvoTimer=setTimeout(fireAutoConvo, delay);
+}
+
+async function fireAutoConvo(){
+  if(paused||aiLock||irisHidden) {
+    scheduleAutoConvo();
+    return;
+  }
+  const calvinStarts=Math.random()<0.5;
+  if(calvinStarts){
+    const prompt=CALVIN_STARTERS[Math.floor(Math.random()*CALVIN_STARTERS.length)];
+    await calvinSpeak(prompt);
+    // After Calvin speaks, Iris gets a chance to respond naturally
+    const lastCalvin=calvinHist[calvinHist.length-1];
+    if(lastCalvin && lastCalvin.role==='assistant'){
+      const speech=cleanText(lastCalvin.content);
+      if(speech) setTimeout(()=>irisReact('Calvin just said to you: "'+speech+'" — respond naturally, you can ask him something back or just reply.'),1200);
+    }
+  } else {
+    const prompt=IRIS_STARTERS[Math.floor(Math.random()*IRIS_STARTERS.length)];
+    // Iris speaks first
+    irisHist.push({role:'user',content:prompt});
+    if(irisHist.length>18) irisHist=irisHist.slice(-18);
+    try{
+      const raw=await callGroq(IRIS_KEY,IRIS_SYS,irisHist);
+      irisHist.push({role:'assistant',content:raw});
+      document.getElementById('iris-thought').textContent=raw||'...';
+      document.getElementById('iris-mood').textContent=guessMood(raw);
+      showBubble('iris',raw);
+      // Calvin responds to Iris
+      if(raw) setTimeout(()=>calvinSpeak('Iris just said to you: "'+raw+'" — respond naturally. You can ask her something back or just reply.'),1400);
+    }catch(e){ console.error('[Iris auto]',e); }
+  }
+  scheduleAutoConvo();
+}
 
 // ═══════════════════════════════════════════════════
 //  THREE SETUP
@@ -290,24 +352,22 @@ const irisMR=new THREE.WebGLRenderer({canvas:document.getElementById('iris-cam')
 irisMR.setSize(200,74);
 
 // ═══════════════════════════════════════════════════
-//  CHARACTER MOVEMENT STATE  (independent of clock)
+//  CHARACTER MOVEMENT STATE
 // ═══════════════════════════════════════════════════
-const calvinPos={x:-3,y:0,z:0};       // logical ground position
-const calvinDest={x:-3,z:0};          // where he's walking to
-let calvinAngle=0;                     // current facing angle
+const calvinPos={x:-3,y:0,z:0};
+const calvinDest={x:-3,z:0};
+let calvinAngle=0;
 
-const irisPos={x:4,y:4,z:1};         // iris floats freely
+const irisPos={x:4,y:4,z:1};
 const irisDest={x:4,z:1};
 let irisAngle=0;
 
-let elapsed=0; // our own elapsed time, incremented per frame
+let elapsed=0;
 
 const placedObjects=[];
 
 // ═══════════════════════════════════════════════════
 //  BUILD SHAPES
-// ═══════════════════════════════════════════════════
-//  PARSE — returns array of all BUILD commands found
 // ═══════════════════════════════════════════════════
 function parseAllBuilds(text){
   const results=[];
@@ -318,7 +378,6 @@ function parseAllBuilds(text){
       const obj=JSON.parse(m[1]);
       if(obj&&obj.shape) results.push(obj);
     }catch(e){
-      // fallback: find next { ... } on same line
       const start=text.indexOf('{',m.index);
       const end=text.indexOf('\n',m.index);
       const chunk=text.slice(start, end===-1?undefined:end);
@@ -336,9 +395,6 @@ function cleanText(t){
   return t.replace(/BUILD:\s*\{[^\n\r]+\}/g,'').trim();
 }
 
-// ═══════════════════════════════════════════════════
-//  BUILD SHAPE
-// ═══════════════════════════════════════════════════
 function buildShape(cmd){
   const shape=(cmd.shape||'cube').toLowerCase();
   const colorStr=String(cmd.color||'#aaaaff');
@@ -364,7 +420,6 @@ function buildShape(cmd){
   const mat=new THREE.MeshPhongMaterial({color,shininess:55});
   const mesh=new THREE.Mesh(geo,mat);
   mesh.castShadow=true; mesh.receiveShadow=true;
-  // y=0 → sits on the floor. y>0 → elevated by that many units above floor.
   mesh.position.set(wx, halfH+wy, wz);
   scene.add(mesh);
   placedObjects.push(mesh);
@@ -379,7 +434,6 @@ function buildShape(cmd){
     if(p<1) requestAnimationFrame(pop);
   })();
 
-  // Walk Calvin toward the last placed object
   calvinDest.x=wx-1.5;
   calvinDest.z=wz+0.4;
 
@@ -427,7 +481,6 @@ async function calvinSpeak(trigger){
   try{
     let raw=await callGroq(CALVIN_KEY,CALVIN_SYS,calvinHist);
 
-    // If Calvin says he's building something but forgot the BUILD command, nudge once
     const builds=parseAllBuilds(raw);
     if(builds.length===0 && mentionsBuilding(raw)){
       const nudge=[...calvinHist,
@@ -436,11 +489,7 @@ async function calvinSpeak(trigger){
       ];
       const retry=await callGroq(CALVIN_KEY,CALVIN_SYS,nudge);
       const retryBuilds=parseAllBuilds(retry);
-      if(retryBuilds.length>0){
-        // Use the retry response
-        raw=retry;
-      }
-      // Either way push the original to history
+      if(retryBuilds.length>0){ raw=retry; }
     }
 
     calvinHist.push({role:'assistant',content:raw});
@@ -491,6 +540,7 @@ function togglePause(){
   const b=document.getElementById('pausebtn');
   b.textContent=paused?'Resume':'Pause';
   b.classList.toggle('on',paused);
+  if(!paused) scheduleAutoConvo();
 }
 function toggleMute(){
   muted=!muted;
@@ -529,6 +579,8 @@ function sendMsg(){
     document.getElementById('imginput').value='';
   }
   document.getElementById('msginput').value='';
+  // Reset the auto convo timer whenever the user sends a message
+  scheduleAutoConvo();
   calvinSpeak(prefix+'A visitor says: "'+userMsg+'"');
   setTimeout(()=>irisReact(prefix+'A visitor said: "'+userMsg+'" — respond to that.'),1800);
 }
@@ -584,7 +636,7 @@ function resize(){
 window.addEventListener('resize',resize); resize();
 
 // ═══════════════════════════════════════════════════
-//  ANIMATION LOOP  — uses its own elapsed, not clock
+//  ANIMATION LOOP
 // ═══════════════════════════════════════════════════
 let lastTime=performance.now();
 
@@ -592,11 +644,11 @@ function animate(){
   requestAnimationFrame(animate);
 
   const now=performance.now();
-  const dt=Math.min((now-lastTime)/1000, 0.05); // seconds, capped
+  const dt=Math.min((now-lastTime)/1000, 0.05);
   lastTime=now;
 
   if(!paused){
-    elapsed+=dt; // our own ever-growing time
+    elapsed+=dt;
 
     // ── Camera ──────────────────────────────────────
     mainCam.position.set(
@@ -614,16 +666,13 @@ function animate(){
       const speed=3.0*dt;
       calvinPos.x+=cdx/cdist*Math.min(speed,cdist);
       calvinPos.z+=cdz/cdist*Math.min(speed,cdist);
-      // Face the direction of travel
       calvinAngle=Math.atan2(cdx,cdz);
     }
-    // Bob up and down while moving, gentle rock when still
     const moving=cdist>0.06;
     calvinPos.y=1.25+(moving?Math.abs(Math.sin(elapsed*8))*0.08:Math.sin(elapsed*1.2)*0.03);
 
     calvinMesh.position.set(calvinPos.x,calvinPos.y,calvinPos.z);
     calvinMesh.rotation.y=calvinAngle;
-    // Tilt side to side while walking
     calvinMesh.rotation.z=moving?Math.sin(elapsed*8)*0.06:Math.sin(elapsed*0.8)*0.015;
 
     // ── Iris orbits Calvin, floats up and down ────────
@@ -632,7 +681,6 @@ function animate(){
     const targetIZ=calvinPos.z+Math.cos(elapsed*0.38)*orbitR;
     const targetIY=3.6+Math.sin(elapsed*0.9)*0.9;
 
-    // Smooth follow
     irisPos.x+=(targetIX-irisPos.x)*Math.min(1,dt*1.2);
     irisPos.z+=(targetIZ-irisPos.z)*Math.min(1,dt*1.2);
     irisPos.y+=(targetIY-irisPos.y)*Math.min(1,dt*2.0);
@@ -646,8 +694,7 @@ function animate(){
     calvinGlow.intensity=0.5+Math.sin(elapsed*2.0)*0.18;
     irisGlow.intensity=0.5+Math.sin(elapsed*2.4+1)*0.18;
 
-    // ── Gentle placed-object rotation ─────────────────
-    placedObjects.forEach((o,i)=>{ o.rotation.y+=dt*0.1*(i%2?1:-1); });
+    // NOTE: placed objects do NOT rotate — they stay exactly where Calvin put them.
   }
 
   // ── Render ──────────────────────────────────────────
@@ -672,7 +719,6 @@ async function startup(){
   await new Promise(r=>setTimeout(r,280));
   document.getElementById('loading').style.display='none';
 
-  // Place Calvin and Iris at their starting spots
   calvinMesh.position.set(-3,1.25,0);
   irisMesh.position.set(4,4,1);
   calvinPos.x=-3; calvinPos.z=0;
@@ -686,6 +732,9 @@ async function startup(){
   setTimeout(()=>{
     irisReact("Calvin just arrived. Say a short hello to him.");
   },3500);
+
+  // Start the autonomous conversation cycle after the intro
+  setTimeout(scheduleAutoConvo, 35000);
 }
 
 startup();
