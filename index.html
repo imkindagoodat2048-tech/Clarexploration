@@ -6,123 +6,107 @@
 <title>Calvin & Iris</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0a0a14; color:#e8e4f0; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; height:100vh; }
-#c { display:block; position:fixed; inset:0; }
-
-#topbar {
-  position:fixed; top:0; left:0; right:0; height:50px;
-  background:rgba(8,8,18,0.92); backdrop-filter:blur(10px);
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100vh;}
+#c{display:block;position:fixed;inset:0;}
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:50px;
+  background:rgba(6,6,16,0.93);backdrop-filter:blur(10px);
   border-bottom:1px solid rgba(255,255,255,0.07);
-  display:flex; align-items:center; padding:0 14px; gap:8px; z-index:200;
+  display:flex;align-items:center;padding:0 14px;gap:8px;z-index:200;
 }
-.title { font-size:15px; font-weight:700; color:#b8a8ff; margin-right:6px; letter-spacing:0.02em; }
-.sep { width:1px; height:22px; background:rgba(255,255,255,0.1); margin:0 4px; }
-.btn {
-  padding:5px 11px; border-radius:6px; border:1px solid rgba(255,255,255,0.13);
-  background:rgba(255,255,255,0.04); color:#bbb; font-size:12px; cursor:pointer;
-  transition:all 0.15s; user-select:none;
+.title{font-size:15px;font-weight:700;color:#b0a0ff;margin-right:4px;}
+.sep{width:1px;height:22px;background:rgba(255,255,255,0.1);margin:0 2px;}
+.btn{
+  padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.04);color:#bbb;font-size:12px;cursor:pointer;
+  transition:all 0.15s;user-select:none;
 }
-.btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
-.btn.on { background:rgba(255,100,100,0.18); border-color:rgba(255,100,100,0.35); color:#ffaaaa; }
-#stopbtn { background:rgba(255,150,60,0.14); border-color:rgba(255,150,60,0.3); color:#ffcc88; }
-#stopbtn:hover { background:rgba(255,150,60,0.28); }
-#stopbtn.on { background:rgba(80,200,80,0.14); border-color:rgba(80,200,80,0.3); color:#88ffaa; }
-#statustext { font-size:11px; color:#555; margin-left:auto; }
-
-#bottom {
-  position:fixed; bottom:0; left:0; right:0; z-index:200;
-  padding:10px 14px; background:rgba(8,8,18,0.92); backdrop-filter:blur(10px);
+.btn:hover{background:rgba(255,255,255,0.1);color:#fff;}
+.btn.on{background:rgba(255,90,90,0.18);border-color:rgba(255,90,90,0.35);color:#ffaaaa;}
+#stopbtn{background:rgba(255,145,50,0.13);border-color:rgba(255,145,50,0.28);color:#ffc880;}
+#stopbtn:hover{background:rgba(255,145,50,0.26);}
+#stopbtn.on{background:rgba(70,200,100,0.13);border-color:rgba(70,200,100,0.28);color:#88ffaa;}
+#statustext{font-size:11px;color:#444;margin-left:auto;}
+#bottom{
+  position:fixed;bottom:0;left:0;right:0;z-index:200;
+  padding:10px 14px;background:rgba(6,6,16,0.93);backdrop-filter:blur(10px);
   border-top:1px solid rgba(255,255,255,0.07);
-  display:flex; gap:8px; align-items:center;
+  display:flex;gap:8px;align-items:center;
 }
-#imgbtn {
-  padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.13);
-  background:rgba(255,255,255,0.05); color:#aaa; font-size:12px; cursor:pointer;
-  white-space:nowrap; transition:all 0.15s;
+#imgbtn{
+  padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.05);color:#999;font-size:12px;cursor:pointer;
+  white-space:nowrap;transition:all 0.15s;
 }
-#imgbtn:hover { background:rgba(255,255,255,0.1); color:#fff; }
-#imginput { display:none; }
-#imgpreview {
-  width:36px; height:36px; border-radius:6px; object-fit:cover;
-  border:1px solid rgba(255,255,255,0.2); display:none;
+#imgbtn:hover{background:rgba(255,255,255,0.1);color:#fff;}
+#imginput{display:none;}
+#imgpreview{width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18);display:none;}
+#msginput{
+  flex:1;padding:8px 12px;border-radius:8px;
+  border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);
+  color:#eee;font-size:13px;outline:none;
 }
-#msginput {
-  flex:1; padding:8px 12px; border-radius:8px;
-  border:1px solid rgba(255,255,255,0.13); background:rgba(255,255,255,0.06);
-  color:#eee; font-size:13px; outline:none;
+#msginput::placeholder{color:#444;}
+#msginput:focus{border-color:rgba(160,140,255,0.5);background:rgba(255,255,255,0.08);}
+#sendbtn{
+  padding:8px 16px;border-radius:8px;border:none;
+  background:linear-gradient(135deg,#5535b8,#7848e8);color:#fff;
+  font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;
 }
-#msginput::placeholder { color:#555; }
-#msginput:focus { border-color:rgba(180,160,255,0.4); background:rgba(255,255,255,0.08); }
-#sendbtn {
-  padding:8px 16px; border-radius:8px; border:none;
-  background:linear-gradient(135deg,#5a3fbc,#8050f0); color:#fff;
-  font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s;
-}
-#sendbtn:hover { filter:brightness(1.15); }
-
-.char-panel {
-  position:fixed; bottom:72px; z-index:200;
-  width:230px; background:rgba(8,8,20,0.95); backdrop-filter:blur(12px);
-  border:1px solid rgba(255,255,255,0.09); border-radius:12px;
-  padding:14px; display:none;
+#sendbtn:hover{filter:brightness(1.15);}
+.char-panel{
+  position:fixed;bottom:72px;z-index:200;
+  width:228px;background:rgba(6,6,18,0.96);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,0.08);border-radius:12px;
+  padding:14px;display:none;
   animation:fadeup 0.2s ease;
 }
-@keyframes fadeup { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-.char-panel.visible { display:block; }
-#calvin-panel { left:14px; border-top:2px solid #7755dd; }
-#iris-panel { right:14px; border-top:2px solid #40b8f0; }
-.panel-name { font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; }
-#calvin-panel .panel-name { color:#9870ff; }
-#iris-panel .panel-name { color:#50d0ff; }
-.panel-row { font-size:12px; margin-bottom:5px; }
-.panel-row .lbl { color:#555; }
-.panel-row .val { color:#ccc; font-weight:500; }
-.panel-thought { font-size:12px; color:#999; line-height:1.5; margin:8px 0; font-style:italic; min-height:36px; }
-.panel-cam-wrap {
-  width:100%; height:76px; border-radius:7px; overflow:hidden;
-  border:1px solid rgba(255,255,255,0.08); background:#050510;
+@keyframes fadeup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.char-panel.visible{display:block;}
+#calvin-panel{left:14px;border-top:2px solid #7044cc;}
+#iris-panel{right:14px;border-top:2px solid #30a8e8;}
+.pname{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;}
+#calvin-panel .pname{color:#9060ff;}
+#iris-panel .pname{color:#40c0ff;}
+.prow{font-size:12px;margin-bottom:4px;color:#888;}
+.prow span{color:#ccc;font-weight:500;}
+.pthought{font-size:12px;color:#888;line-height:1.5;margin:8px 0;font-style:italic;min-height:32px;}
+.pcam{width:100%;height:74px;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);background:#020208;}
+.pcam canvas{width:100%!important;height:100%!important;display:block;}
+.pclose{position:absolute;top:8px;right:10px;font-size:14px;color:#333;cursor:pointer;}
+.pclose:hover{color:#999;}
+.bubble{
+  position:fixed;z-index:150;pointer-events:none;
+  background:rgba(10,10,24,0.97);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.08);border-radius:10px;
+  padding:8px 12px;max-width:200px;font-size:12px;line-height:1.6;
+  color:#bbb;opacity:0;transition:opacity 0.3s;word-break:break-word;
 }
-.panel-cam-wrap canvas { width:100%!important; height:100%!important; display:block; }
-.panel-close {
-  position:absolute; top:8px; right:10px; font-size:14px; color:#444;
-  cursor:pointer; line-height:1;
+.bubble.show{opacity:1;}
+#calvin-bubble{border-left:2px solid #7044cc;left:14px;bottom:138px;}
+#iris-bubble{border-left:2px solid #30a8e8;right:14px;bottom:138px;}
+#hint{
+  position:fixed;bottom:72px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:#2a2a3a;pointer-events:none;z-index:100;
+  text-align:center;white-space:nowrap;
 }
-.panel-close:hover { color:#aaa; }
-
-.bubble {
-  position:fixed; z-index:150; pointer-events:none;
-  background:rgba(12,12,28,0.96); backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,0.09); border-radius:10px;
-  padding:8px 12px; max-width:210px; font-size:12px; line-height:1.6;
-  color:#ccc; opacity:0; transition:opacity 0.3s; word-wrap:break-word;
+#loading{
+  position:fixed;inset:0;z-index:999;background:#080812;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
 }
-.bubble.show { opacity:1; }
-#calvin-bubble { border-left:2px solid #7755dd; left:14px; bottom:140px; }
-#iris-bubble { border-left:2px solid #40b8f0; right:14px; bottom:140px; }
-
-#hint {
-  position:fixed; bottom:72px; left:50%; transform:translateX(-50%);
-  font-size:11px; color:#333; pointer-events:none; z-index:100;
-  text-align:center; white-space:nowrap;
-}
-
-#loading {
-  position:fixed; inset:0; z-index:999; background:#0a0a14;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
-}
-.load-logo { font-size:30px; font-weight:800; color:#b0a0ff; letter-spacing:0.05em; }
-.load-sub { font-size:13px; color:#555; }
-#loadbar { width:180px; height:2px; background:rgba(255,255,255,0.07); border-radius:2px; overflow:hidden; }
-#loadfill { height:100%; width:0%; background:linear-gradient(90deg,#5a3fbc,#8050f0); border-radius:2px; transition:width 0.5s; }
+.llogo{font-size:28px;font-weight:800;color:#a898ff;letter-spacing:0.05em;}
+.lsub{font-size:13px;color:#444;}
+#lbar{width:170px;height:2px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
+#lfill{height:100%;width:0%;background:linear-gradient(90deg,#5535b8,#7848e8);border-radius:2px;transition:width 0.5s;}
 </style>
 </head>
 <body>
 
 <div id="loading">
-  <div class="load-logo">Calvin &amp; Iris</div>
-  <div class="load-sub" id="loadmsg">Building the world...</div>
-  <div id="loadbar"><div id="loadfill"></div></div>
+  <div class="llogo">Calvin &amp; Iris</div>
+  <div class="lsub" id="lmsg">Building the world...</div>
+  <div id="lbar"><div id="lfill"></div></div>
 </div>
 
 <canvas id="c"></canvas>
@@ -138,518 +122,553 @@ body { background:#0a0a14; color:#e8e4f0; font-family:'Segoe UI',system-ui,sans-
 </div>
 
 <div id="calvin-panel" class="char-panel">
-  <span class="panel-close" onclick="document.getElementById('calvin-panel').classList.remove('visible')">✕</span>
-  <div class="panel-name">Calvin — Rectangular Prism</div>
-  <div class="panel-row"><span class="lbl">Mood: </span><span class="val" id="calvin-mood">curious</span></div>
-  <div class="panel-thought" id="calvin-thought">Waking up...</div>
-  <div class="panel-cam-wrap"><canvas id="calvin-cam"></canvas></div>
+  <span class="pclose" onclick="this.closest('.char-panel').classList.remove('visible')">✕</span>
+  <div class="pname">Calvin — Rectangular Prism</div>
+  <div class="prow">Mood: <span id="calvin-mood">calm</span></div>
+  <div class="pthought" id="calvin-thought">...</div>
+  <div class="pcam"><canvas id="calvin-cam"></canvas></div>
 </div>
 
 <div id="iris-panel" class="char-panel">
-  <span class="panel-close" onclick="document.getElementById('iris-panel').classList.remove('visible')">✕</span>
-  <div class="panel-name">Iris — Floating Cube</div>
-  <div class="panel-row"><span class="lbl">Mood: </span><span class="val" id="iris-mood">playful</span></div>
-  <div class="panel-thought" id="iris-thought">Floating around...</div>
-  <div class="panel-cam-wrap"><canvas id="iris-cam"></canvas></div>
+  <span class="pclose" onclick="this.closest('.char-panel').classList.remove('visible')">✕</span>
+  <div class="pname">Iris — Floating Cube</div>
+  <div class="prow">Mood: <span id="iris-mood">curious</span></div>
+  <div class="pthought" id="iris-thought">...</div>
+  <div class="pcam"><canvas id="iris-cam"></canvas></div>
 </div>
 
 <div class="bubble" id="calvin-bubble"></div>
 <div class="bubble" id="iris-bubble"></div>
-
-<div id="hint">M1: pan &nbsp;|&nbsp; M2: rotate &nbsp;|&nbsp; Scroll: zoom &nbsp;|&nbsp; Click Calvin or Iris to inspect</div>
+<div id="hint">M1 drag: pan &nbsp;|&nbsp; M2 drag: rotate &nbsp;|&nbsp; Scroll: zoom &nbsp;|&nbsp; Click Calvin or Iris to inspect</div>
 
 <div id="bottom">
   <button id="imgbtn" onclick="document.getElementById('imginput').click()">&#128247; Image</button>
   <input type="file" id="imginput" accept="image/*" onchange="handleImage(event)">
-  <img id="imgpreview" src="" alt="preview">
+  <img id="imgpreview" src="" alt="">
   <input type="text" id="msginput" placeholder="Say something to Calvin and Iris..." onkeydown="if(event.key==='Enter')sendMsg()">
   <button id="sendbtn" onclick="sendMsg()">Send</button>
 </div>
 
 <script>
-// ── CONSTANTS ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════
 const CALVIN_KEY = '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';
 const IRIS_KEY   = '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';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL      = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
-const CALVIN_SYS = `You are Calvin, a rectangular prism in a 3D world. Iris is your companion cube who floats nearby.
-BE FAMILY-FRIENDLY AT ALL TIMES. Speak in short, calm sentences (1-2 max). Do not be wacky or over-dramatic. Just be normal and grounded.
-When you place or build something, you MUST include a BUILD command on its own line at the end of your message:
-BUILD:{"shape":"cube","color":"#ff6644","position":{"x":2,"y":0,"z":-3},"scale":[1,1,1]}
-Available shapes: sphere, pyramid, torus, cube, rectprism
-Color must be a hex string e.g. "#ff4422". Position x and z must be numbers between -12 and 12. y is always 0. Scale is [w,h,d].
-IMPORTANT: If you say you are building or placing something, you MUST include the BUILD command — without it nothing will appear. Never describe building without the command.
-You do not have to build every reply. But when you do, include the command.`;
+const CALVIN_SYS = `You are Calvin, a rectangular prism character in a 3D world. Iris is your companion cube who floats nearby.
+Be calm, grounded, and friendly. Not over-dramatic. Short sentences — 1 to 2 max.
+BE FAMILY-FRIENDLY AT ALL TIMES.
 
-const IRIS_SYS = `You are Iris, a floating cube. Calvin is your companion — he builds things and you watch and chat.
-BE FAMILY-FRIENDLY AT ALL TIMES. Keep replies to 1-2 short sentences. Be friendly and occasionally witty, but relaxed.`;
+To place a shape in the world, output this on its own line at the END of your reply:
+BUILD:{"shape":"cube","color":"#ff6644","x":2,"z":-3,"scale":[1,1,1]}
 
-// ── STATE ─────────────────────────────────────────────────────────────
-let paused = false, muted = false, irisHidden = false, buildingEnabled = true;
-let calvinHist = [], irisHist = [];
-let pendingImageData = null;
-let aiLock = false;
-let autoTimer = 0;
-let mouseMoved = false;
-let mouse = { down:false, btn:0, lx:0, ly:0 };
-let camState = { theta:0.3, phi:0.4, dist:28, panX:0, panY:2 };
-let bubTimers = {};
-const placedObjects = [];
-const calvinTarget = new THREE.Vector3(-3, 0, 0);
+Rules for BUILD:
+- shape must be one of: sphere, pyramid, torus, cube, rectprism
+- color is a hex string like "#ff4422" or "#44aaff"
+- x and z are numbers between -10 and 10 (your position in the world)
+- scale is [width, height, depth] as numbers, e.g. [1,2,1] for tall, [2,0.5,2] for flat
+- y is always omitted — shapes sit on the floor automatically
 
-// ── THREE.JS SCENE ────────────────────────────────────────────────────
-const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+If you say you are building something, you MUST include the BUILD line. Without it nothing appears.
+You do not have to build every reply.
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x080810);
-scene.fog = new THREE.FogExp2(0x080810, 0.018);
+Example reply:
+"I think I'll put a red cube over there."
+BUILD:{"shape":"cube","color":"#dd3322","x":4,"z":-5,"scale":[1,1,1]}`;
 
-const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 300);
+const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your companion — he builds things and you watch.
+Be friendly and occasionally funny. 1 to 2 short sentences only.
+BE FAMILY-FRIENDLY AT ALL TIMES.`;
 
-// ── LIGHTING ──────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0x1a1040, 1.2));
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let paused=false, muted=false, irisHidden=false, buildingEnabled=true, aiLock=false;
+let calvinHist=[], irisHist=[];
+let pendingImageData=null;
+let autoTimer=0;
+let mouseMoved=false;
+let mouse={down:false,btn:0,lx:0,ly:0};
+let cam={theta:0.3,phi:0.42,dist:26,px:0,py:2};
+let bubTimers={};
 
-const sun = new THREE.DirectionalLight(0xfff0e0, 1.4);
-sun.position.set(12, 22, 8);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.near = 0.1; sun.shadow.camera.far = 80;
-[-25,25].forEach(v => { sun.shadow.camera.left = sun.shadow.camera.bottom = -25; sun.shadow.camera.right = sun.shadow.camera.top = 25; });
+// ═══════════════════════════════════════════════════
+//  THREE SETUP
+// ═══════════════════════════════════════════════════
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070710);
+scene.fog=new THREE.FogExp2(0x070710,0.016);
+
+const mainCam=new THREE.PerspectiveCamera(58,1,0.1,300);
+
+// Lighting
+scene.add(new THREE.AmbientLight(0x18103a,1.4));
+const sun=new THREE.DirectionalLight(0xfff0e0,1.5);
+sun.position.set(14,24,10);
+sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.near=0.5; sun.shadow.camera.far=80;
+sun.shadow.camera.left=sun.shadow.camera.bottom=-30;
+sun.shadow.camera.right=sun.shadow.camera.top=30;
 scene.add(sun);
+const pl1=new THREE.PointLight(0x4420aa,0.8,70); pl1.position.set(-12,10,-8); scene.add(pl1);
+const pl2=new THREE.PointLight(0x0066cc,0.5,60); pl2.position.set(12,8,-12); scene.add(pl2);
 
-const fillLight = new THREE.PointLight(0x5030cc, 0.7, 60);
-fillLight.position.set(-10, 8, -6);
-scene.add(fillLight);
-
-const rimLight = new THREE.PointLight(0x0088ff, 0.4, 50);
-rimLight.position.set(10, 6, -10);
-scene.add(rimLight);
-
-// ── FLOOR ──────────────────────────────────────────────────────────────
-const floorMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(100, 100),
-  new THREE.MeshLambertMaterial({ color: 0x0d0d1e })
-);
-floorMesh.rotation.x = -Math.PI/2;
-floorMesh.receiveShadow = true;
-scene.add(floorMesh);
-scene.add(new THREE.GridHelper(100, 50, 0x151530, 0x0f0f28));
+// Floor
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshLambertMaterial({color:0x0c0c1c}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+scene.add(new THREE.GridHelper(120,60,0x14142e,0x0e0e22));
 
 // Stars
-(function addStars() {
-  const geo = new THREE.BufferGeometry();
-  const pos = [];
-  for(let i=0; i<600; i++) {
-    const theta = Math.random()*Math.PI*2, phi = Math.acos(2*Math.random()-1);
-    const r = 80 + Math.random()*30;
-    pos.push(r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi)*0.5+20, r*Math.sin(phi)*Math.sin(theta));
+(()=>{
+  const g=new THREE.BufferGeometry(), v=[];
+  for(let i=0;i<800;i++){
+    const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=90+Math.random()*30;
+    v.push(r*Math.sin(p)*Math.cos(t),Math.abs(r*Math.cos(p))+10,r*Math.sin(p)*Math.sin(t));
   }
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color:0xffffff, size:0.25, transparent:true, opacity:0.7 })));
+  g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.2,transparent:true,opacity:0.6})));
 })();
 
-// ── CHARACTERS ────────────────────────────────────────────────────────
-function makeEye(parent, x, y, z, glowColor) {
-  const eyeM = new THREE.MeshPhongMaterial({ color:0xffffff, emissive:glowColor, shininess:100 });
-  const pupilM = new THREE.MeshPhongMaterial({ color:0x111111 });
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13,8,8), eyeM);
-  eye.position.set(x,y,z);
-  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.065,6,6), pupilM);
-  pupil.position.z = 0.1;
-  eye.add(pupil);
-  parent.add(eye);
-  return eye;
+// ═══════════════════════════════════════════════════
+//  CHARACTERS
+// ═══════════════════════════════════════════════════
+function addEyes(parent, faceZ, eyeColor){
+  const em=new THREE.MeshPhongMaterial({color:0xffffff,emissive:eyeColor,shininess:120});
+  const pm=new THREE.MeshPhongMaterial({color:0x0a0a0a});
+  [-0.3,0.3].forEach(x=>{
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(0.11,8,8),em);
+    eye.position.set(x,0.2,faceZ);
+    const pupil=new THREE.Mesh(new THREE.SphereGeometry(0.055,6,6),pm);
+    pupil.position.z=0.085; eye.add(pupil); parent.add(eye);
+  });
 }
 
-// Calvin
-const calvinMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(1.8, 2.6, 1.3),
-  new THREE.MeshPhongMaterial({ color:0x7744cc, emissive:0x1a0a40, shininess:70 })
+// Calvin — rectangular prism
+const calvinMesh=new THREE.Mesh(
+  new THREE.BoxGeometry(1.7,2.5,1.2),
+  new THREE.MeshPhongMaterial({color:0x6633bb,emissive:0x160830,shininess:65})
 );
-calvinMesh.position.set(-3, 1.3, 0);
-calvinMesh.castShadow = true;
-calvinMesh.name = 'calvin';
+calvinMesh.castShadow=true; calvinMesh.name='calvin';
 scene.add(calvinMesh);
-makeEye(calvinMesh, -0.38, 0.35, 0.67, 0x9966ff);
-makeEye(calvinMesh, 0.38, 0.35, 0.67, 0x9966ff);
-const calvinGlow = new THREE.PointLight(0x7744cc, 0.6, 7);
+addEyes(calvinMesh,0.62,0x8855ee);
+const calvinGlow=new THREE.PointLight(0x6633bb,0.7,8);
 calvinMesh.add(calvinGlow);
 
-// Iris
-const irisMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(1.4, 1.4, 1.4),
-  new THREE.MeshPhongMaterial({ color:0x30b0f0, emissive:0x082840, shininess:100 })
+// Iris — cube
+const irisMesh=new THREE.Mesh(
+  new THREE.BoxGeometry(1.3,1.3,1.3),
+  new THREE.MeshPhongMaterial({color:0x28a0e0,emissive:0x061c30,shininess:110})
 );
-irisMesh.position.set(4, 4, 1);
-irisMesh.castShadow = true;
-irisMesh.name = 'iris';
+irisMesh.castShadow=true; irisMesh.name='iris';
 scene.add(irisMesh);
-makeEye(irisMesh, -0.3, 0.1, 0.72, 0x00eeff);
-makeEye(irisMesh, 0.3, 0.1, 0.72, 0x00eeff);
-const irisGlow = new THREE.PointLight(0x30b0f0, 0.6, 7);
+addEyes(irisMesh,0.67,0x00ddff);
+const irisGlow=new THREE.PointLight(0x28a0e0,0.7,8);
 irisMesh.add(irisGlow);
 
-// ── MINI POV CAMERAS ──────────────────────────────────────────────────
-const calvinCam = new THREE.PerspectiveCamera(75, 202/76, 0.1, 200);
-calvinCam.position.set(0, 0.4, 0.68);
-calvinCam.rotation.set(0, 0, 0);
-calvinMesh.add(calvinCam);
+// POV cameras
+const calvinPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
+calvinPOV.position.set(0,0.3,0.65);
+calvinMesh.add(calvinPOV);
 
-const irisCam = new THREE.PerspectiveCamera(75, 202/76, 0.1, 200);
-irisCam.position.set(0, 0, 0.75);
-irisMesh.add(irisCam);
+const irisPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
+irisPOV.position.set(0,0,0.7);
+irisMesh.add(irisPOV);
 
-const calvinMiniR = new THREE.WebGLRenderer({ canvas: document.getElementById('calvin-cam'), antialias:false });
-calvinMiniR.setSize(202, 76);
-calvinMiniR.shadowMap.enabled = false;
+const calvinMR=new THREE.WebGLRenderer({canvas:document.getElementById('calvin-cam'),antialias:false});
+calvinMR.setSize(200,74);
+const irisMR=new THREE.WebGLRenderer({canvas:document.getElementById('iris-cam'),antialias:false});
+irisMR.setSize(200,74);
 
-const irisMiniR = new THREE.WebGLRenderer({ canvas: document.getElementById('iris-cam'), antialias:false });
-irisMiniR.setSize(202, 76);
-irisMiniR.shadowMap.enabled = false;
+// ═══════════════════════════════════════════════════
+//  CHARACTER MOVEMENT STATE  (independent of clock)
+// ═══════════════════════════════════════════════════
+const calvinPos={x:-3,y:0,z:0};       // logical ground position
+const calvinDest={x:-3,z:0};          // where he's walking to
+let calvinAngle=0;                     // current facing angle
 
-// ── SHAPE FACTORY ─────────────────────────────────────────────────────
-function buildShape(cmd) {
-  const { shape, color, position, scale } = cmd;
-  const s = scale || [1,1,1];
-  const c = typeof color === 'string' ? parseInt(color.replace('#','0x')) : 0xffffff;
+const irisPos={x:4,y:4,z:1};         // iris floats freely
+const irisDest={x:4,z:1};
+let irisAngle=0;
+
+let elapsed=0; // our own elapsed time, incremented per frame
+
+const placedObjects=[];
+
+// ═══════════════════════════════════════════════════
+//  BUILD SHAPES
+// ═══════════════════════════════════════════════════
+function buildShape(cmd){
+  const shape=(cmd.shape||'cube').toLowerCase();
+  const colorStr=String(cmd.color||'#aaaaff').replace(/^(?!#)/,'#');
+  const color=parseInt(colorStr.replace('#',''),16)||0xaaaaff;
+  const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale:[1,1,1];
+  const wx=isNaN(cmd.x)?((Math.random()-0.5)*18):Math.max(-12,Math.min(12,Number(cmd.x)));
+  const wz=isNaN(cmd.z)?((Math.random()-0.5)*18):Math.max(-12,Math.min(12,Number(cmd.z)));
 
   let geo;
-  switch((shape||'cube').toLowerCase()) {
-    case 'sphere':    geo = new THREE.SphereGeometry(0.65*s[0], 18, 14); break;
-    case 'pyramid':   geo = new THREE.ConeGeometry(0.7*s[0], 1.5*s[1], 4); break;
-    case 'torus':     geo = new THREE.TorusGeometry(0.55*s[0], 0.22*s[1], 12, 28); break;
-    case 'rectprism': geo = new THREE.BoxGeometry(s[0]*1.9, s[1]*0.9, s[2]*1.3); break;
-    default:          geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
+  switch(shape){
+    case 'sphere':    geo=new THREE.SphereGeometry(0.6*s[0],18,14); break;
+    case 'pyramid':   geo=new THREE.ConeGeometry(0.65*s[0],1.4*s[1],4); break;
+    case 'torus':     geo=new THREE.TorusGeometry(0.5*s[0],0.2*s[1],12,28); break;
+    case 'rectprism': geo=new THREE.BoxGeometry(s[0]*1.8,s[1]*1.0,s[2]*1.1); break;
+    default:          geo=new THREE.BoxGeometry(s[0],s[1],s[2]);
   }
 
-  const mat = new THREE.MeshPhongMaterial({ color:c, shininess:60 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.castShadow = true; mesh.receiveShadow = true;
-
   geo.computeBoundingBox();
-  const h = geo.boundingBox.max.y - geo.boundingBox.min.y;
-  const px = Math.max(-12, Math.min(12, position?.x || (Math.random()-0.5)*20));
-  const pz = Math.max(-12, Math.min(12, position?.z || (Math.random()-0.5)*20));
-  mesh.position.set(px, h/2, pz);
+  const halfH=(geo.boundingBox.max.y-geo.boundingBox.min.y)/2;
+
+  const mat=new THREE.MeshPhongMaterial({color,shininess:55});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.castShadow=true; mesh.receiveShadow=true;
+  mesh.position.set(wx,halfH,wz);
   scene.add(mesh);
   placedObjects.push(mesh);
 
-  // Animate in
-  mesh.scale.set(0.01,0.01,0.01);
-  const t0 = performance.now();
-  (function pop() {
-    const p = Math.min(1, (performance.now()-t0)/350);
-    const e = 1-(1-p)*(1-p)*(1-p);
+  // Pop-in animation
+  mesh.scale.setScalar(0.01);
+  const t0=performance.now();
+  (function pop(){
+    const p=Math.min(1,(performance.now()-t0)/380);
+    const e=1-Math.pow(1-p,3);
     mesh.scale.setScalar(e);
     if(p<1) requestAnimationFrame(pop);
   })();
 
-  // Move Calvin toward it
-  calvinTarget.set(px - 1.8, 0, pz + 0.5);
+  // Send Calvin walking toward the new object
+  calvinDest.x=wx-1.5;
+  calvinDest.z=wz+0.4;
+
+  console.log('[BUILD] placed',shape,'at',wx,wz,'color',colorStr);
+  return true;
 }
 
-// ── AI CALLS ──────────────────────────────────────────────────────────
-function setStatus(t) { document.getElementById('statustext').textContent = t; }
-
-async function callGroq(key, sysPrompt, hist) {
-  const messages = [{ role:'system', content:sysPrompt }, ...hist];
-  const res = await fetch(GROQ_URL, {
-    method:'POST',
-    headers:{ 'Authorization':'Bearer '+key, 'Content-Type':'application/json' },
-    body: JSON.stringify({ model:MODEL, messages, max_tokens:200, temperature:0.88 })
-  });
-  if(!res.ok) throw new Error('API '+res.status);
-  const d = await res.json();
-  return d.choices?.[0]?.message?.content?.trim() || '';
-}
-
-function parseBuild(text) {
-  // Match BUILD: followed by a JSON object, possibly multiline
-  const m = text.match(/BUILD:\s*(\{[^]*?\})/);
-  if(!m) return null;
-  try {
-    const obj = JSON.parse(m[1]);
-    // Validate required fields
+// ═══════════════════════════════════════════════════
+//  PARSE BUILD COMMAND  (very tolerant)
+// ═══════════════════════════════════════════════════
+function parseBuild(text){
+  const idx=text.indexOf('BUILD:');
+  if(idx===-1) return null;
+  const after=text.slice(idx+6).trim();
+  const end=after.indexOf('\n');
+  const jsonStr=end===-1?after:after.slice(0,end);
+  try{
+    const obj=JSON.parse(jsonStr);
+    if(!obj||typeof obj!=='object') return null;
     if(!obj.shape) return null;
-    // Ensure color is a proper hex string
-    if(obj.color && !obj.color.startsWith('#')) obj.color = '#' + obj.color;
-    if(!obj.color) obj.color = '#aaaaff';
-    // Ensure scale is array of 3
-    if(!Array.isArray(obj.scale) || obj.scale.length < 3) obj.scale = [1,1,1];
-    // Ensure position exists
-    if(!obj.position || typeof obj.position.x !== 'number') {
-      obj.position = { x: (Math.random()-0.5)*18, y:0, z: (Math.random()-0.5)*18 };
-    }
     return obj;
-  } catch(e) {
-    console.warn('BUILD parse failed:', m[1], e);
-    return null;
+  }catch(e){
+    // try finding braces manually
+    const a=text.indexOf('{',idx), b=text.lastIndexOf('}');
+    if(a===-1||b===-1||b<=a) return null;
+    try{ return JSON.parse(text.slice(a,b+1)); }catch(e2){ return null; }
   }
 }
-function cleanText(text) { return text.replace(/BUILD:\s*\{[^]*?\}/g,'').trim(); }
+function cleanText(t){ return t.replace(/BUILD:.*$/m,'').replace(/\{[^}]*"shape"[^}]*\}/,'').trim(); }
 
-function showBubble(who, text) {
+// ═══════════════════════════════════════════════════
+//  AI
+// ═══════════════════════════════════════════════════
+function setStatus(t){document.getElementById('statustext').textContent=t;}
+
+async function callGroq(key,sys,hist){
+  const r=await fetch(GROQ_URL,{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+    body:JSON.stringify({model:MODEL,messages:[{role:'system',content:sys},...hist],max_tokens:220,temperature:0.82})
+  });
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  return (d.choices?.[0]?.message?.content||'').trim();
+}
+
+function showBubble(who,text){
   if(muted) return;
-  const el = document.getElementById(who+'-bubble');
-  el.textContent = text;
-  el.classList.add('show');
+  const el=document.getElementById(who+'-bubble');
+  el.textContent=text; el.classList.add('show');
   clearTimeout(bubTimers[who]);
-  bubTimers[who] = setTimeout(()=>el.classList.remove('show'), 6000);
+  bubTimers[who]=setTimeout(()=>el.classList.remove('show'),6500);
 }
 
-function updateMood(who, text) {
-  const hasExclaim = text.includes('!');
-  const hasFun = /haha|lol|wow|whoa|cool/i.test(text);
-  const hasQ = text.includes('?');
-  let mood = 'calm';
-  if(hasExclaim && hasFun) mood = 'excited';
-  else if(hasFun) mood = 'amused';
-  else if(hasExclaim) mood = 'eager';
-  else if(hasQ) mood = 'curious';
-  document.getElementById(who+'-mood').textContent = mood;
+function guessMood(text){
+  if(/\bwow\b|whoa|awesome|cool!/i.test(text)) return 'excited';
+  if(/\?/.test(text)) return 'curious';
+  if(/haha|heh|funny|joke/i.test(text)) return 'amused';
+  if(/!/.test(text)) return 'focused';
+  return 'calm';
 }
 
-async function calvinSpeak(trigger) {
-  if(paused || aiLock) return;
-  aiLock = true;
+async function calvinSpeak(trigger){
+  if(paused||aiLock) return;
+  aiLock=true;
   setStatus('Calvin is thinking...');
-  calvinHist.push({ role:'user', content: trigger });
-  if(calvinHist.length > 16) calvinHist = calvinHist.slice(-16);
-  try {
-    const raw = await callGroq(CALVIN_KEY, CALVIN_SYS, calvinHist);
-    calvinHist.push({ role:'assistant', content:raw });
-    const text = cleanText(raw);
-    const build = parseBuild(raw);
-    document.getElementById('calvin-thought').textContent = text || '...';
-    updateMood('calvin', text);
-    showBubble('calvin', text);
+  calvinHist.push({role:'user',content:trigger});
+  if(calvinHist.length>18) calvinHist=calvinHist.slice(-18);
+  try{
+    const raw=await callGroq(CALVIN_KEY,CALVIN_SYS,calvinHist);
+    calvinHist.push({role:'assistant',content:raw});
+    const speech=cleanText(raw);
+    const build=parseBuild(raw);
+    document.getElementById('calvin-thought').textContent=speech||'...';
+    document.getElementById('calvin-mood').textContent=guessMood(speech);
+    showBubble('calvin',speech);
     setStatus('');
-    if(build && buildingEnabled) {
+    if(build&&buildingEnabled){
       buildShape(build);
-      setTimeout(() => irisReact('Calvin just placed a ' + (build.shape||'shape') + '! React to it.'), 800);
+      setTimeout(()=>irisReact('Calvin just built a '+build.shape+'. Say something short about it.'),900);
     }
-  } catch(e) {
-    setStatus('(Calvin is quiet)');
-    console.error(e);
+  }catch(e){
+    setStatus('(quiet)');
+    console.error('[Calvin]',e);
   }
-  aiLock = false;
+  aiLock=false;
 }
 
-async function irisReact(trigger) {
-  if(paused || irisHidden) return;
-  irisHist.push({ role:'user', content:trigger });
-  if(irisHist.length > 16) irisHist = irisHist.slice(-16);
-  try {
-    const raw = await callGroq(IRIS_KEY, IRIS_SYS, irisHist);
-    irisHist.push({ role:'assistant', content:raw });
-    document.getElementById('iris-thought').textContent = raw || '...';
-    updateMood('iris', raw);
-    showBubble('iris', raw);
-  } catch(e) { console.error(e); }
+async function irisReact(trigger){
+  if(paused||irisHidden) return;
+  irisHist.push({role:'user',content:trigger});
+  if(irisHist.length>18) irisHist=irisHist.slice(-18);
+  try{
+    const raw=await callGroq(IRIS_KEY,IRIS_SYS,irisHist);
+    irisHist.push({role:'assistant',content:raw});
+    document.getElementById('iris-thought').textContent=raw||'...';
+    document.getElementById('iris-mood').textContent=guessMood(raw);
+    showBubble('iris',raw);
+  }catch(e){ console.error('[Iris]',e); }
 }
 
-// ── CONTROLS ──────────────────────────────────────────────────────────
-function toggleBuilding() {
-  buildingEnabled = !buildingEnabled;
-  const b = document.getElementById('stopbtn');
-  b.textContent = buildingEnabled ? 'Stop Building' : 'Start Building';
-  b.classList.toggle('on', !buildingEnabled);
+// ═══════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════
+function toggleBuilding(){
+  buildingEnabled=!buildingEnabled;
+  const b=document.getElementById('stopbtn');
+  b.textContent=buildingEnabled?'Stop Building':'Start Building';
+  b.classList.toggle('on',!buildingEnabled);
 }
-function togglePause() {
-  paused = !paused;
-  const b = document.getElementById('pausebtn');
-  b.textContent = paused ? 'Resume' : 'Pause';
-  b.classList.toggle('on', paused);
+function togglePause(){
+  paused=!paused;
+  const b=document.getElementById('pausebtn');
+  b.textContent=paused?'Resume':'Pause';
+  b.classList.toggle('on',paused);
 }
-function toggleMute() {
-  muted = !muted;
-  document.getElementById('mutebtn').classList.toggle('on', muted);
-  if(muted) { ['calvin','iris'].forEach(w=>document.getElementById(w+'-bubble').classList.remove('show')); }
+function toggleMute(){
+  muted=!muted;
+  document.getElementById('mutebtn').classList.toggle('on',muted);
+  if(muted){['calvin','iris'].forEach(w=>document.getElementById(w+'-bubble').classList.remove('show'));}
 }
-function toggleIris() {
-  irisHidden = !irisHidden;
-  irisMesh.visible = !irisHidden;
-  const b = document.getElementById('hidebtn');
-  b.textContent = irisHidden ? 'Show Iris' : 'Hide Iris';
-  b.classList.toggle('on', irisHidden);
-  if(!irisHidden) calvinSpeak('Iris just reappeared! Say something to her.');
-  else calvinSpeak('Iris just vanished! React to that.');
+function toggleIris(){
+  irisHidden=!irisHidden;
+  irisMesh.visible=!irisHidden;
+  const b=document.getElementById('hidebtn');
+  b.textContent=irisHidden?'Show Iris':'Hide Iris';
+  b.classList.toggle('on',irisHidden);
+  calvinSpeak(irisHidden?'Iris just disappeared. Say something brief.':'Iris is back. Say something brief.');
 }
 
-function handleImage(e) {
-  const file = e.target.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    pendingImageData = ev.target.result;
-    const prev = document.getElementById('imgpreview');
-    prev.src = pendingImageData; prev.style.display = 'block';
+function handleImage(e){
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    pendingImageData=ev.target.result;
+    const p=document.getElementById('imgpreview');
+    p.src=pendingImageData; p.style.display='block';
   };
-  reader.readAsDataURL(file);
+  r.readAsDataURL(f);
 }
 
-function sendMsg() {
-  const txt = document.getElementById('msginput').value.trim();
-  if(!txt && !pendingImageData) return;
-
-  let userMsg = txt || 'Look at this image!';
-  let imgNote = '';
-  if(pendingImageData) {
-    imgNote = '[An image was shared with you] ';
-    pendingImageData = null;
-    document.getElementById('imgpreview').style.display = 'none';
-    document.getElementById('imginput').value = '';
+function sendMsg(){
+  const txt=document.getElementById('msginput').value.trim();
+  if(!txt&&!pendingImageData) return;
+  let userMsg=txt||'Look at this image!';
+  let prefix='';
+  if(pendingImageData){
+    prefix='[An image was shown to you] ';
+    pendingImageData=null;
+    document.getElementById('imgpreview').style.display='none';
+    document.getElementById('imginput').value='';
   }
-  document.getElementById('msginput').value = '';
-
-  const calvinPrompt = imgNote + 'A visitor says to you: "' + userMsg + '"';
-  const irisPrompt   = imgNote + 'A visitor just said to everyone: "' + userMsg + '" — respond to that.';
-
-  calvinSpeak(calvinPrompt);
-  setTimeout(()=>irisReact(irisPrompt), 1800);
+  document.getElementById('msginput').value='';
+  calvinSpeak(prefix+'A visitor says: "'+userMsg+'"');
+  setTimeout(()=>irisReact(prefix+'A visitor said: "'+userMsg+'" — respond to that.'),1800);
 }
 
-// ── CAMERA CONTROL ────────────────────────────────────────────────────
-canvas.addEventListener('mousedown', e => {
-  mouse.down=true; mouse.btn=e.button; mouse.lx=e.clientX; mouse.ly=e.clientY; mouseMoved=false;
+// ═══════════════════════════════════════════════════
+//  CAMERA MOUSE
+// ═══════════════════════════════════════════════════
+canvas.addEventListener('mousedown',e=>{
+  mouse.down=true; mouse.btn=e.button;
+  mouse.lx=e.clientX; mouse.ly=e.clientY; mouseMoved=false;
 });
-canvas.addEventListener('mousemove', e => {
+canvas.addEventListener('mousemove',e=>{
   if(!mouse.down) return;
-  mouseMoved = true;
+  mouseMoved=true;
   const dx=e.clientX-mouse.lx, dy=e.clientY-mouse.ly;
-  if(mouse.btn===2) {
-    camState.theta -= dx*0.006;
-    camState.phi = Math.max(0.08, Math.min(1.35, camState.phi - dy*0.005));
-  } else if(mouse.btn===0) {
-    camState.panX -= dx*0.05;
-    camState.panY = Math.max(-4, Math.min(20, camState.panY + dy*0.05));
+  if(mouse.btn===2){
+    cam.theta-=dx*0.006;
+    cam.phi=Math.max(0.06,Math.min(1.4,cam.phi-dy*0.005));
+  } else if(mouse.btn===0){
+    cam.px-=dx*0.05;
+    cam.py=Math.max(-4,Math.min(22,cam.py+dy*0.05));
   }
   mouse.lx=e.clientX; mouse.ly=e.clientY;
 });
-canvas.addEventListener('mouseup', e => {
-  if(!mouseMoved && e.button===0) {
-    const rect = canvas.getBoundingClientRect();
-    const rc = new THREE.Raycaster();
+canvas.addEventListener('mouseup',e=>{
+  if(!mouseMoved&&e.button===0){
+    const rect=canvas.getBoundingClientRect();
+    const rc=new THREE.Raycaster();
     rc.setFromCamera(new THREE.Vector2(
       ((e.clientX-rect.left)/rect.width)*2-1,
       -((e.clientY-rect.top)/rect.height)*2+1
-    ), camera);
-    const hits = rc.intersectObjects(scene.children, true);
-    if(hits.length) {
-      let obj = hits[0].object;
-      while(obj.parent && obj.parent !== scene) obj = obj.parent;
-      if(obj.name==='calvin') document.getElementById('calvin-panel').classList.toggle('visible');
-      else if(obj.name==='iris') document.getElementById('iris-panel').classList.toggle('visible');
+    ),mainCam);
+    const hits=rc.intersectObjects(scene.children,true);
+    if(hits.length){
+      let o=hits[0].object;
+      while(o.parent&&o.parent!==scene) o=o.parent;
+      if(o.name==='calvin') document.getElementById('calvin-panel').classList.toggle('visible');
+      else if(o.name==='iris') document.getElementById('iris-panel').classList.toggle('visible');
     }
   }
-  mouse.down = false;
+  mouse.down=false;
 });
-canvas.addEventListener('contextmenu', e=>e.preventDefault());
-canvas.addEventListener('wheel', e=>{
-  camState.dist = Math.max(5, Math.min(90, camState.dist + e.deltaY*0.06));
-}, {passive:true});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('wheel',e=>{
+  cam.dist=Math.max(5,Math.min(90,cam.dist+e.deltaY*0.06));
+},{passive:true});
 
-// ── RESIZE ────────────────────────────────────────────────────────────
-function resize() {
-  const w=window.innerWidth, h=window.innerHeight;
-  renderer.setSize(w,h);
-  camera.aspect=w/h; camera.updateProjectionMatrix();
+function resize(){
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  mainCam.aspect=window.innerWidth/window.innerHeight;
+  mainCam.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize); resize();
 
-// ── ANIMATION ─────────────────────────────────────────────────────────
-const clock = new THREE.Clock();
+// ═══════════════════════════════════════════════════
+//  ANIMATION LOOP  — uses its own elapsed, not clock
+// ═══════════════════════════════════════════════════
+let lastTime=performance.now();
 
-function animate() {
+function animate(){
   requestAnimationFrame(animate);
-  if(paused) return;
-  const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
 
-  // Camera
-  const cp = camState;
-  camera.position.set(
-    cp.panX + cp.dist * Math.sin(cp.theta) * Math.cos(cp.phi),
-    cp.panY + cp.dist * Math.sin(cp.phi),
-    cp.dist * Math.cos(cp.theta) * Math.cos(cp.phi)
-  );
-  camera.lookAt(cp.panX, Math.max(0, cp.panY - 3), 0);
+  const now=performance.now();
+  const dt=Math.min((now-lastTime)/1000, 0.05); // seconds, capped
+  lastTime=now;
 
-  // Calvin moves toward target
-  const cp2 = calvinMesh.position;
-  cp2.x += (calvinTarget.x - cp2.x) * dt * 1.8;
-  cp2.z += (calvinTarget.z - cp2.z) * dt * 1.8;
-  cp2.y = 1.3 + Math.sin(t*1.4)*0.04;
-  const dx = calvinTarget.x - cp2.x, dz = calvinTarget.z - cp2.z;
-  if(Math.abs(dx)+Math.abs(dz) > 0.05) calvinMesh.rotation.y = Math.atan2(dx, dz);
+  if(!paused){
+    elapsed+=dt; // our own ever-growing time
 
-  // Iris floats & orbits
-  const orbitR = 5.5 + Math.sin(t*0.18)*2;
-  const ix = calvinMesh.position.x + Math.sin(t*0.32)*orbitR;
-  const iz = calvinMesh.position.z + Math.cos(t*0.32)*orbitR;
-  irisMesh.position.x += (ix - irisMesh.position.x)*dt*0.7;
-  irisMesh.position.z += (iz - irisMesh.position.z)*dt*0.7;
-  irisMesh.position.y = 3.8 + Math.sin(t*0.75)*0.8;
-  irisMesh.rotation.x = Math.sin(t*0.4)*0.22;
-  irisMesh.rotation.y += dt*0.45;
-  irisMesh.rotation.z = Math.cos(t*0.35)*0.18;
+    // ── Camera ──────────────────────────────────────
+    mainCam.position.set(
+      cam.px + cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),
+      cam.py  + cam.dist*Math.sin(cam.phi),
+      cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi)
+    );
+    mainCam.lookAt(cam.px, Math.max(0,cam.py-3), 0);
 
-  // Glows pulse
-  calvinGlow.intensity = 0.45 + Math.sin(t*1.8)*0.15;
-  irisGlow.intensity = 0.45 + Math.sin(t*2.1+1)*0.15;
+    // ── Calvin walks toward dest ─────────────────────
+    const cdx=calvinDest.x-calvinPos.x;
+    const cdz=calvinDest.z-calvinPos.z;
+    const cdist=Math.sqrt(cdx*cdx+cdz*cdz);
+    if(cdist>0.04){
+      const speed=3.0*dt;
+      calvinPos.x+=cdx/cdist*Math.min(speed,cdist);
+      calvinPos.z+=cdz/cdist*Math.min(speed,cdist);
+      // Face the direction of travel
+      calvinAngle=Math.atan2(cdx,cdz);
+    }
+    // Bob up and down while moving, gentle rock when still
+    const moving=cdist>0.06;
+    calvinPos.y=1.25+(moving?Math.abs(Math.sin(elapsed*8))*0.08:Math.sin(elapsed*1.2)*0.03);
 
-  // Subtle wobble on placed objects
-  placedObjects.forEach((o,i) => { o.rotation.y += dt*0.12*(i%2?1:-1); });
+    calvinMesh.position.set(calvinPos.x,calvinPos.y,calvinPos.z);
+    calvinMesh.rotation.y=calvinAngle;
+    // Tilt side to side while walking
+    calvinMesh.rotation.z=moving?Math.sin(elapsed*8)*0.06:Math.sin(elapsed*0.8)*0.015;
 
-  // Auto-conversation
-  autoTimer += dt;
-  if(autoTimer > 22 && !aiLock) {
-    autoTimer = 0;
-    const prompts = [
-      'You feel like building something. Pick a shape, place it, and say what you made.',
-      'Look around at your world. Say something brief about it, and maybe add a new shape.',
-      'You decide to build something new. Place it using the BUILD command and say what it is.',
-      'Say something to Iris about what you want to build next, then build it.',
-      'You want to add something to your world. Build it and describe it in one sentence.',
-    ];
-    calvinSpeak(prompts[Math.floor(Math.random()*prompts.length)]);
-    setTimeout(()=>irisReact('Calvin just did something in the world. Say something brief about it.'), 3000);
+    // ── Iris orbits Calvin, floats up and down ────────
+    const orbitR=5+Math.sin(elapsed*0.22)*1.8;
+    const targetIX=calvinPos.x+Math.sin(elapsed*0.38)*orbitR;
+    const targetIZ=calvinPos.z+Math.cos(elapsed*0.38)*orbitR;
+    const targetIY=3.6+Math.sin(elapsed*0.9)*0.9;
+
+    // Smooth follow
+    irisPos.x+=(targetIX-irisPos.x)*Math.min(1,dt*1.2);
+    irisPos.z+=(targetIZ-irisPos.z)*Math.min(1,dt*1.2);
+    irisPos.y+=(targetIY-irisPos.y)*Math.min(1,dt*2.0);
+
+    irisMesh.position.set(irisPos.x,irisPos.y,irisPos.z);
+    irisMesh.rotation.y+=dt*0.5;
+    irisMesh.rotation.x=Math.sin(elapsed*0.45)*0.2;
+    irisMesh.rotation.z=Math.cos(elapsed*0.38)*0.16;
+
+    // ── Glow pulses ───────────────────────────────────
+    calvinGlow.intensity=0.5+Math.sin(elapsed*2.0)*0.18;
+    irisGlow.intensity=0.5+Math.sin(elapsed*2.4+1)*0.18;
+
+    // ── Gentle placed-object rotation ─────────────────
+    placedObjects.forEach((o,i)=>{ o.rotation.y+=dt*0.1*(i%2?1:-1); });
+
+    // ── Auto conversation ──────────────────────────────
+    autoTimer+=dt;
+    if(autoTimer>22&&!aiLock){
+      autoTimer=0;
+      const opts=[
+        'You want to place something in your world. Build it and describe it in one sentence.',
+        'You decide to add a new shape somewhere. Use BUILD to place it and say what it is.',
+        'You look around and feel like creating. Pick a shape and location and build it.',
+        'Say one thing to Iris, then place something new with BUILD.',
+      ];
+      calvinSpeak(opts[Math.floor(Math.random()*opts.length)]);
+      setTimeout(()=>irisReact('Calvin just did something. React briefly.'),3200);
+    }
   }
 
-  // Render
+  // ── Render ──────────────────────────────────────────
   renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
   renderer.setScissorTest(false);
-  renderer.render(scene, camera);
-
-  // Mini POV
-  calvinMiniR.render(scene, calvinCam);
-  irisMiniR.render(scene, irisCam);
+  renderer.render(scene,mainCam);
+  calvinMR.render(scene,calvinPOV);
+  irisMR.render(scene,irisPOV);
 }
 
-// ── STARTUP ───────────────────────────────────────────────────────────
-async function startup() {
-  const fill = document.getElementById('loadfill');
-  fill.style.width = '40%';
+// ═══════════════════════════════════════════════════
+//  STARTUP
+// ═══════════════════════════════════════════════════
+async function startup(){
+  const fill=document.getElementById('lfill');
+  fill.style.width='40%';
   await new Promise(r=>setTimeout(r,500));
-  fill.style.width = '80%';
-  document.getElementById('loadmsg').textContent = 'Waking up Calvin and Iris...';
+  document.getElementById('lmsg').textContent='Waking up Calvin and Iris...';
+  fill.style.width='85%';
   await new Promise(r=>setTimeout(r,400));
-  fill.style.width = '100%';
-  await new Promise(r=>setTimeout(r,300));
-  document.getElementById('loading').style.display = 'none';
+  fill.style.width='100%';
+  await new Promise(r=>setTimeout(r,280));
+  document.getElementById('loading').style.display='none';
+
+  // Place Calvin and Iris at their starting spots
+  calvinMesh.position.set(-3,1.25,0);
+  irisMesh.position.set(4,4,1);
+  calvinPos.x=-3; calvinPos.z=0;
+  irisPos.x=4; irisPos.y=4; irisPos.z=1;
 
   animate();
 
   setTimeout(()=>{
-    calvinSpeak("You've just arrived in a 3D world. Introduce yourself briefly, then build something to start.");
-  }, 600);
+    calvinSpeak("You've just arrived in a 3D world. Introduce yourself in one sentence, then build something.");
+  },700);
   setTimeout(()=>{
-    irisReact("Calvin just arrived and is getting started. Say a quick hello.");
-  }, 3200);
+    irisReact("Calvin just arrived and is building something. Say a short hello.");
+  },3500);
 }
 
 startup();
