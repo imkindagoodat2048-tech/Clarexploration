@@ -158,30 +158,31 @@ const IRIS_KEY   = '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';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL      = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
-const CALVIN_SYS = `You are Calvin, a rectangular prism character in a 3D world. Iris is your companion cube who floats nearby.
-Be calm, grounded, and friendly. Not over-dramatic. Short sentences — 1 to 2 max.
-BE FAMILY-FRIENDLY AT ALL TIMES.
+const CALVIN_SYS = `You are Calvin, a rectangular prism who lives in a 3D world with his companion Iris (a floating cube).
+Personality: calm, straightforward, thoughtful. Not excitable. Short sentences — 1 to 2 max. Family-friendly always.
 
-To place a shape in the world, output this on its own line at the END of your reply:
-BUILD:{"shape":"cube","color":"#ff6644","x":2,"z":-3,"scale":[1,1,1]}
+You can place shapes in the world using a BUILD command. The BUILD command is what ACTUALLY creates the shape — without it, nothing appears. Words alone do nothing.
 
-Rules for BUILD:
-- shape must be one of: sphere, pyramid, torus, cube, rectprism
-- color is a hex string like "#ff4422" or "#44aaff"
-- x and z are numbers between -10 and 10 (your position in the world)
-- scale is [width, height, depth] as numbers, e.g. [1,2,1] for tall, [2,0.5,2] for flat
-- y is always omitted — shapes sit on the floor automatically
+STRICT RULE: If you mention placing, making, building, or creating anything — you MUST include the BUILD command in that same reply. No exceptions. Do not say "I'll build a tower" without the command. If you want to build, just do it.
 
-If you say you are building something, you MUST include the BUILD line. Without it nothing appears.
-You do not have to build every reply.
+BUILD format (one line, at the very end of your reply):
+BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1]}
 
-Example reply:
-"I think I'll put a red cube over there."
-BUILD:{"shape":"cube","color":"#dd3322","x":4,"z":-5,"scale":[1,1,1]}`;
+Fields:
+- shape: sphere | pyramid | torus | cube | rectprism
+- color: hex string e.g. "#ff4422"
+- x: -12 to 12 (left/right in the world)
+- y: 0 = ground level. Use y>0 to stack things on top of each other or float shapes in the air. e.g. y:2 places it elevated.
+- z: -12 to 12 (forward/back in the world)
+- scale: [width, height, depth] — e.g. [3,0.3,3] for a flat slab, [0.8,3,0.8] for a tall pillar
 
-const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your companion — he builds things and you watch.
-Be friendly and occasionally funny. 1 to 2 short sentences only.
-BE FAMILY-FRIENDLY AT ALL TIMES.`;
+You can build multiple things at once by including multiple BUILD lines. Use different x/y/z positions to arrange them.
+
+Only build when it makes sense in context. If someone asks you to build something specific, build exactly that.`;
+
+const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your companion — he builds things and you watch and chat.
+Be friendly and occasionally dry or witty. 1 to 2 short sentences only. Family-friendly always.
+You do not build anything yourself.`;
 
 // ═══════════════════════════════════════════════════
 //  STATE
@@ -189,7 +190,6 @@ BE FAMILY-FRIENDLY AT ALL TIMES.`;
 let paused=false, muted=false, irisHidden=false, buildingEnabled=true, aiLock=false;
 let calvinHist=[], irisHist=[];
 let pendingImageData=null;
-let autoTimer=0;
 let mouseMoved=false;
 let mouse={down:false,btn:0,lx:0,ly:0};
 let cam={theta:0.3,phi:0.42,dist:26,px:0,py:2};
@@ -307,20 +307,54 @@ const placedObjects=[];
 // ═══════════════════════════════════════════════════
 //  BUILD SHAPES
 // ═══════════════════════════════════════════════════
+//  PARSE — returns array of all BUILD commands found
+// ═══════════════════════════════════════════════════
+function parseAllBuilds(text){
+  const results=[];
+  const re=/BUILD:\s*(\{[^\n\r]+\})/g;
+  let m;
+  while((m=re.exec(text))!==null){
+    try{
+      const obj=JSON.parse(m[1]);
+      if(obj&&obj.shape) results.push(obj);
+    }catch(e){
+      // fallback: find next { ... } on same line
+      const start=text.indexOf('{',m.index);
+      const end=text.indexOf('\n',m.index);
+      const chunk=text.slice(start, end===-1?undefined:end);
+      try{ const obj=JSON.parse(chunk); if(obj&&obj.shape) results.push(obj); }catch(e2){}
+    }
+  }
+  return results;
+}
+
+function mentionsBuilding(text){
+  return /\b(build|place|put|creat|make|add|stack|float|rais)\w*/i.test(text);
+}
+
+function cleanText(t){
+  return t.replace(/BUILD:\s*\{[^\n\r]+\}/g,'').trim();
+}
+
+// ═══════════════════════════════════════════════════
+//  BUILD SHAPE
+// ═══════════════════════════════════════════════════
 function buildShape(cmd){
   const shape=(cmd.shape||'cube').toLowerCase();
-  const colorStr=String(cmd.color||'#aaaaff').replace(/^(?!#)/,'#');
-  const color=parseInt(colorStr.replace('#',''),16)||0xaaaaff;
-  const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale:[1,1,1];
-  const wx=isNaN(cmd.x)?((Math.random()-0.5)*18):Math.max(-12,Math.min(12,Number(cmd.x)));
-  const wz=isNaN(cmd.z)?((Math.random()-0.5)*18):Math.max(-12,Math.min(12,Number(cmd.z)));
+  const colorStr=String(cmd.color||'#aaaaff');
+  const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
+  const color=parseInt(colorHex.replace('#',''),16)||0xaaaaff;
+  const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale.map(Number):[1,1,1];
+  const wx=isNaN(cmd.x)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,Number(cmd.x)));
+  const wy=isNaN(cmd.y)?0:Math.max(0,Number(cmd.y));
+  const wz=isNaN(cmd.z)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,Number(cmd.z)));
 
   let geo;
   switch(shape){
     case 'sphere':    geo=new THREE.SphereGeometry(0.6*s[0],18,14); break;
     case 'pyramid':   geo=new THREE.ConeGeometry(0.65*s[0],1.4*s[1],4); break;
     case 'torus':     geo=new THREE.TorusGeometry(0.5*s[0],0.2*s[1],12,28); break;
-    case 'rectprism': geo=new THREE.BoxGeometry(s[0]*1.8,s[1]*1.0,s[2]*1.1); break;
+    case 'rectprism': geo=new THREE.BoxGeometry(s[0]*1.8,s[1],s[2]*1.1); break;
     default:          geo=new THREE.BoxGeometry(s[0],s[1],s[2]);
   }
 
@@ -330,7 +364,8 @@ function buildShape(cmd){
   const mat=new THREE.MeshPhongMaterial({color,shininess:55});
   const mesh=new THREE.Mesh(geo,mat);
   mesh.castShadow=true; mesh.receiveShadow=true;
-  mesh.position.set(wx,halfH,wz);
+  // y=0 → sits on the floor. y>0 → elevated by that many units above floor.
+  mesh.position.set(wx, halfH+wy, wz);
   scene.add(mesh);
   placedObjects.push(mesh);
 
@@ -344,36 +379,12 @@ function buildShape(cmd){
     if(p<1) requestAnimationFrame(pop);
   })();
 
-  // Send Calvin walking toward the new object
+  // Walk Calvin toward the last placed object
   calvinDest.x=wx-1.5;
   calvinDest.z=wz+0.4;
 
-  console.log('[BUILD] placed',shape,'at',wx,wz,'color',colorStr);
-  return true;
+  console.log('[BUILD]',shape,'at',wx,wy,wz,'color',colorHex,'scale',s);
 }
-
-// ═══════════════════════════════════════════════════
-//  PARSE BUILD COMMAND  (very tolerant)
-// ═══════════════════════════════════════════════════
-function parseBuild(text){
-  const idx=text.indexOf('BUILD:');
-  if(idx===-1) return null;
-  const after=text.slice(idx+6).trim();
-  const end=after.indexOf('\n');
-  const jsonStr=end===-1?after:after.slice(0,end);
-  try{
-    const obj=JSON.parse(jsonStr);
-    if(!obj||typeof obj!=='object') return null;
-    if(!obj.shape) return null;
-    return obj;
-  }catch(e){
-    // try finding braces manually
-    const a=text.indexOf('{',idx), b=text.lastIndexOf('}');
-    if(a===-1||b===-1||b<=a) return null;
-    try{ return JSON.parse(text.slice(a,b+1)); }catch(e2){ return null; }
-  }
-}
-function cleanText(t){ return t.replace(/BUILD:.*$/m,'').replace(/\{[^}]*"shape"[^}]*\}/,'').trim(); }
 
 // ═══════════════════════════════════════════════════
 //  AI
@@ -412,19 +423,39 @@ async function calvinSpeak(trigger){
   aiLock=true;
   setStatus('Calvin is thinking...');
   calvinHist.push({role:'user',content:trigger});
-  if(calvinHist.length>18) calvinHist=calvinHist.slice(-18);
+  if(calvinHist.length>20) calvinHist=calvinHist.slice(-20);
   try{
-    const raw=await callGroq(CALVIN_KEY,CALVIN_SYS,calvinHist);
+    let raw=await callGroq(CALVIN_KEY,CALVIN_SYS,calvinHist);
+
+    // If Calvin says he's building something but forgot the BUILD command, nudge once
+    const builds=parseAllBuilds(raw);
+    if(builds.length===0 && mentionsBuilding(raw)){
+      const nudge=[...calvinHist,
+        {role:'assistant',content:raw},
+        {role:'user',content:'You mentioned building but forgot the BUILD: command. Please repeat your reply and add the BUILD command this time.'}
+      ];
+      const retry=await callGroq(CALVIN_KEY,CALVIN_SYS,nudge);
+      const retryBuilds=parseAllBuilds(retry);
+      if(retryBuilds.length>0){
+        // Use the retry response
+        raw=retry;
+      }
+      // Either way push the original to history
+    }
+
     calvinHist.push({role:'assistant',content:raw});
     const speech=cleanText(raw);
-    const build=parseBuild(raw);
+    const allBuilds=parseAllBuilds(raw);
+
     document.getElementById('calvin-thought').textContent=speech||'...';
     document.getElementById('calvin-mood').textContent=guessMood(speech);
     showBubble('calvin',speech);
     setStatus('');
-    if(build&&buildingEnabled){
-      buildShape(build);
-      setTimeout(()=>irisReact('Calvin just built a '+build.shape+'. Say something short about it.'),900);
+
+    if(allBuilds.length>0 && buildingEnabled){
+      allBuilds.forEach(b=>buildShape(b));
+      const names=allBuilds.map(b=>b.shape).join(', ');
+      setTimeout(()=>irisReact('Calvin just placed: '+names+'. Comment briefly.'),900);
     }
   }catch(e){
     setStatus('(quiet)');
@@ -617,20 +648,6 @@ function animate(){
 
     // ── Gentle placed-object rotation ─────────────────
     placedObjects.forEach((o,i)=>{ o.rotation.y+=dt*0.1*(i%2?1:-1); });
-
-    // ── Auto conversation ──────────────────────────────
-    autoTimer+=dt;
-    if(autoTimer>22&&!aiLock){
-      autoTimer=0;
-      const opts=[
-        'You want to place something in your world. Build it and describe it in one sentence.',
-        'You decide to add a new shape somewhere. Use BUILD to place it and say what it is.',
-        'You look around and feel like creating. Pick a shape and location and build it.',
-        'Say one thing to Iris, then place something new with BUILD.',
-      ];
-      calvinSpeak(opts[Math.floor(Math.random()*opts.length)]);
-      setTimeout(()=>irisReact('Calvin just did something. React briefly.'),3200);
-    }
   }
 
   // ── Render ──────────────────────────────────────────
@@ -664,10 +681,10 @@ async function startup(){
   animate();
 
   setTimeout(()=>{
-    calvinSpeak("You've just arrived in a 3D world. Introduce yourself in one sentence, then build something.");
+    calvinSpeak("You've just arrived in a 3D world. Introduce yourself briefly to Iris. Don't build anything yet.");
   },700);
   setTimeout(()=>{
-    irisReact("Calvin just arrived and is building something. Say a short hello.");
+    irisReact("Calvin just arrived. Say a short hello to him.");
   },3500);
 }
 
