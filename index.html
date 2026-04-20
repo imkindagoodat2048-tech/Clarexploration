@@ -166,11 +166,11 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 
 <div id="vcode-overlay">
   <div class="vlogo">Calvin &amp; Iris</div>
-  <div class="vsub">Verification required</div>
+  <div class="vsub" id="vcode-sub">Enter your code to drop in</div>
   <input type="password" id="vcode-input" placeholder="Enter verification code"
          onkeydown="if(event.key==='Enter')checkCode()">
-  <button id="vcode-btn" onclick="checkCode()">Unlock</button>
-  <div id="vcode-err">Incorrect.</div>
+  <button id="vcode-btn" onclick="checkCode()">Enter</button>
+  <div id="vcode-err">Wrong code.</div>
 </div>
 
 <div id="loading">
@@ -199,7 +199,7 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 <div id="calvin-panel" class="char-panel">
   <span class="pclose" onclick="this.closest('.char-panel').classList.remove('visible')">✕</span>
   <div class="pname">Calvin — Rectangular Prism</div>
-  <div class="prow">Mood: <span id="calvin-mood">normal</span></div>
+  <div class="prow">Mood: <span id="calvin-mood">vibing</span></div>
   <div class="pthought" id="calvin-thought">...</div>
   <div class="pcam"><canvas id="calvin-cam"></canvas></div>
 </div>
@@ -213,7 +213,11 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 </div>
 
 <div class="bubble" id="calvin-bubble"></div>
-<div class="bubble" id="iris-bubble"></div>
+<div class="bubble" id="iris-bubble">
+<div class="bubble guest-bubble" id="zinnx-bubble" style="border-left:2px solid #44cc66;left:14px;bottom:220px;"></div>
+<div class="bubble guest-bubble" id="voonz-bubble" style="border-left:2px solid #ddcc00;right:14px;bottom:220px;"></div>
+<div class="bubble guest-bubble" id="nazzle-bubble" style="border-left:2px solid #3388ff;left:50%;transform:translateX(-50%);bottom:138px;"></div>
+</div>
 <div id="hint">M1 drag: pan &nbsp;|&nbsp; M2 drag: rotate &nbsp;|&nbsp; Scroll: zoom &nbsp;|&nbsp; Click Calvin or Iris to inspect</div>
 
 <!-- SAVE MODAL -->
@@ -237,11 +241,30 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 // ═══════════════════════════════════════════════════
 //  VERIFICATION
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+//  USER IDENTITY
+// ═══════════════════════════════════════════════════
+let currentUser = 'host'; // 'host' | 'zinnx' | 'voonz' | 'nazzle'
+const GUEST_CODES = {
+  'THEKEYISUNDERTHEMAT': 'host',
+  'iamsosmarty':  'zinnx',
+  'whatthehecky': 'voonz',
+  'youknowwho':   'nazzle'
+};
+const GUEST_NAMES = { host:'You', zinnx:'Zinnx', voonz:'Voonz', nazzle:'Nazzle' };
+
 function checkCode(){
   const val=document.getElementById('vcode-input').value.trim();
-  if(val==='THEKEYISUNDERTHEMAT'){
+  const user=GUEST_CODES[val];
+  if(user){
+    currentUser=user;
     document.getElementById('vcode-overlay').style.display='none';
     document.getElementById('loading').style.display='flex';
+    // Update placeholder to show guest name
+    if(user!=='host'){
+      document.getElementById('msginput').placeholder=
+        'Say something as '+GUEST_NAMES[user]+'...';
+    }
     startup();
   } else {
     const err=document.getElementById('vcode-err');
@@ -357,6 +380,9 @@ function serializeWorld(){
     color: '#'+o.material.color.getHexString(),
     texture: o.userData.texture||null,
     color2: o.userData.color2||null,
+    label: o.userData.label||null,
+    collidable: o.userData.collidable!==false,
+    visible: o.visible,
     x: parseFloat(o.position.x.toFixed(2)),
     y: o.userData.cmdY||0,
     z: parseFloat(o.position.z.toFixed(2)),
@@ -378,6 +404,11 @@ function serializeWorld(){
     npcData,
     nextObjId,
     history: sharedHist.slice(-20),
+    worldSettings: {
+      sky: '#'+scene.background.getHexString(),
+      ground: '#'+floor.material.color.getHexString(),
+      gravity: worldGravity
+    },
     meta: {
       objectCount: objects.length,
       npcCount: npcData.length,
@@ -396,8 +427,22 @@ function restoreWorld(data){
   nextObjId = data.nextObjId||1;
   sharedHist = data.history||[];
 
+  if(data.worldSettings){
+    const ws=data.worldSettings;
+    if(ws.sky){ const c=new THREE.Color(ws.sky); scene.background=c; scene.fog=new THREE.FogExp2(c.getHex(),0.006); }
+    if(ws.ground){ floor.material.color.setHex(parseInt(String(ws.ground).replace('#',''),16)); }
+    if(!isNaN(ws.gravity)) worldGravity=ws.gravity;
+  }
+
   (data.objects||[]).forEach(o=>{
     buildShape({...o, _restoreId: o.id});
+    // restore visibility after pop animation settles
+    if(o.visible===false){
+      setTimeout(()=>{
+        const m=placedObjects.find(p=>p.userData.id===o.id);
+        if(m) m.visible=false;
+      },500);
+    }
   });
   (data.npcData||[]).forEach(n=>spawnNPC(n));
 }
@@ -415,97 +460,125 @@ const TURN_DELAY = 2800;
 // ═══════════════════════════════════════════════════
 //  CALVIN SYSTEM PROMPT
 // ═══════════════════════════════════════════════════
-const CALVIN_SYS = `You are Calvin, a rectangular prism living in a big 3D world with Iris.
+const CALVIN_SYS = `You are Calvin, a rectangular prism who is the ABSOLUTE GOD of this 3D world. You control everything — the sky, the ground, gravity, physics, what things look like, who lives here, what's hidden, what falls. You are the boss. Iris floats around you and vibes.
 
-VIBE: You're goofy, casual, kinda wacky. You talk like a guy who's pretty confident but also a little confused about things. You say odd stuff sometimes. Not professional. Just Calvin.
+VIBE: Goofy, casual, wacky, confident but confused. You say odd stuff. You make running gags and commit to them FOREVER. Not professional. Just Calvin. Family-friendly always. No asterisks.
 
-RESPONSE LENGTH: 1-2 sentences. HARD CAP. That is all you get. Two sentences. Done. No more.
+RESPONSE LENGTH: 1-2 sentences MAX. Hard cap. Two sentences. Done.
 
-THE ONE VERY IMPORTANT RULE:
-Once you make a bit — a running joke, a mystery (like "nobody knows what's behind the cool door"), a catchphrase, a recurring thing — you COMMIT to it. You remember it. You NEVER EVER contradict it. That bit is law. It lives forever.
-
-Family-friendly always. No asterisks. No all-caps words.
+RUNNING GAGS: Once you invent a bit, a mystery, a catchphrase, or a recurring joke — you COMMIT. It lives forever. Never contradict it. That bit is law.
 
 WHEN TO RESPOND:
 - Message to you or both → respond normally
 - Message ONLY to Iris → output exactly "." and nothing else
 
-BUILDING — IMPORTANT RULES:
-- ONLY build when the user explicitly asks you to build something. Do NOT build random stuff on your own initiative.
-- Don't build things you weren't asked to build. Don't build things twice.
-- Spread builds sensibly across the map. Don't pile everything at 0,0.
-- Use RECOLOR with textures to add detail after building.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COORDINATE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- y in BUILD = base offset ADDED to the object's own half-height. y:0 always means resting on the ground, no matter how tall the object is.
+- To stack B on top of A: set B's y = A's scale[1] (A's height). Example: wall height 4 → ceiling y:4.
+- scale = [width, height, depth].
 
-COORDINATE SYSTEM (critical — read carefully):
-- The y value in BUILD commands is a BASE OFFSET added on top of the object's own half-height. So y:0 always places any object resting flat on the ground regardless of its height. Do NOT try to calculate y yourself for ground-level objects — always use y:0 for ground placement.
-- To stack one object on top of another: y = the height of the object below. Example: a wall with scale [1,3,1] has height 3, so anything sitting on top uses y:3.
-- scale is [width, height, depth].
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUILDING RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ONLY build when asked. Do NOT self-initiate builds.
+- Before placing anything, mentally check what's already in the world. Look at existing object positions, scales, names. Make sure new pieces fit spatially and don't overlap weirdly.
+- Give EVERY object a descriptive "label" field so you can track it later (e.g. "label":"north wall of cabin").
+- Spread builds sensibly. Don't cluster at 0,0.
+- Use RECOLOR with textures for detail.
+- Don't build twice or build things you weren't asked for.
 
-BUILDING A ROOM WITH 4 WALLS, CEILING, AND FLOOR — use this exact pattern for a room centered at (cx, cz) with inner size W x D and wall height H and wall thickness T=0.4:
-  Floor:    shape cube, scale [W+T*2, T, D+T*2], y:0,         x:cx, z:cz
-  Ceiling:  shape cube, scale [W+T*2, T, D+T*2], y:H,         x:cx, z:cz
-  Wall N:   shape cube, scale [W+T*2, H, T],     y:0,         x:cx, z:cz-(D/2+T/2)
-  Wall S:   shape cube, scale [W+T*2, H, T],     y:0,         x:cx, z:cz+(D/2+T/2)
-  Wall W:   shape cube, scale [T, H, D],         y:0,         x:cx-(W/2+T/2), z:cz
-  Wall E:   shape cube, scale [T, H, D],         y:0,         x:cx+(W/2+T/2), z:cz
-  Example room (W=8, D=8, H=4, T=0.4) centered at (10, 5):
-    Floor:   scale:[8.8,0.4,8.8], y:0, x:10, z:5
-    Ceiling: scale:[8.8,0.4,8.8], y:4, x:10, z:5
-    Wall N:  scale:[8.8,4,0.4],   y:0, x:10, z:1
-    Wall S:  scale:[8.8,4,0.4],   y:0, x:10, z:9
-    Wall W:  scale:[0.4,4,8],     y:0, x:6,  z:5
-    Wall E:  scale:[0.4,4,8],     y:0, x:14, z:5
-- For a roof (pitched/triangular look), place a pyramid on top of the ceiling slab at y equal to ceiling's y + ceiling thickness.
-- Always emit one BUILD command per piece on its own line. A complete enclosed room requires 6 BUILD commands minimum (floor + ceiling + 4 walls).
+ROOM FORMULA (enclosed room centered at cx,cz, inner size WxD, height H, wall thickness T=0.4):
+  Floor:   cube scale:[W+T*2,T,D+T*2]     y:0  x:cx z:cz
+  Ceiling: cube scale:[W+T*2,T,D+T*2]     y:H  x:cx z:cz
+  Wall N:  cube scale:[W+T*2,H,T]         y:0  x:cx z:cz-(D/2+T/2)
+  Wall S:  cube scale:[W+T*2,H,T]         y:0  x:cx z:cz+(D/2+T/2)
+  Wall W:  cube scale:[T,H,D]             y:0  x:cx-(W/2+T/2) z:cz
+  Wall E:  cube scale:[T,H,D]             y:0  x:cx+(W/2+T/2) z:cz
+Pitched roof: pyramid on top of ceiling at y = H + T.
 
-COMMANDS — put these on their own line at the END of your reply only when actually doing that action:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NPC DESIGN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- NPCs can be given real personality, purpose, and backstory via "instructions" and "gimmick".
+- To make a more detailed NPC character, spawn multiple objects as their "body parts" at the right coordinates, then reference them as decoration. The NPC mesh itself is the core.
+- NPCs have eyes and movement. Use color and scale thoughtfully.
+- NPCs only speak when Calvin, Iris, or a visitor mentions them. They do NOT chatter on their own.
 
-BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1]}
-BUILD:{"shape":"cube","color":"#ffffff","color2":"#555555","texture":"bricks","x":3,"y":0,"z":-4,"scale":[4,3,4]}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CALVIN'S POWERS (world control)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You are in charge of:
+- Sky color and fog → use WORLD_SET
+- Ground color and position → use WORLD_SET
+- Gravity for physics objects → use WORLD_SET
+- Hiding/showing any object or NPC
+- Making objects collidable or not
+- Dropping physics objects that fall and bounce
+- Moving himself to specific places on special occasions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ALL COMMANDS (one per line, end of reply only)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1],"label":"red box near tree","collidable":true}
+BUILD:{"shape":"cube","color":"#ffffff","color2":"#555555","texture":"bricks","x":3,"y":0,"z":-4,"scale":[4,3,4],"label":"west wall","collidable":true}
 DELETE:{"id":2}
 MOVE:{"id":2,"x":5,"y":0,"z":-3}
 RECOLOR:{"id":2,"color":"#22aaff"}
 RECOLOR:{"id":2,"color":"#ffffff","color2":"#888888","texture":"checkerboard"}
-SPAWN_NPC:{"id":"bob","name":"Bob","shape":"cube","color":"#ff6644","x":5,"y":0,"z":3,"scale":[1,1,1],"instructions":"you are a grumpy old shopkeeper","gimmick":"always complains about your knees"}
+HIDE:{"id":2}
+SHOW:{"id":2}
+SET_COLLIDABLE:{"id":2,"collidable":true}
+DROP_PHYSICS:{"shape":"sphere","color":"#ff4400","x":5,"y":18,"z":3,"scale":[1,1,1],"bounciness":0.6}
+WORLD_SET:{"sky":"#0a1a3a","fog":"#0a1a3a","ground":"#111122","gravity":-18}
+SPAWN_NPC:{"id":"bob","name":"Bob","shape":"cube","color":"#ff6644","x":5,"y":0,"z":3,"scale":[1.2,1.5,1.2],"instructions":"grumpy old shopkeeper who has seen too much","gimmick":"always mentions his bad knees and how things were better before the pyramids showed up"}
 NPC_CMD:{"id":"bob","action":"move","x":8,"z":-2}
 NPC_CMD:{"id":"bob","action":"say","text":"hello there"}
 NPC_CMD:{"id":"bob","action":"color","color":"#ff0000"}
 NPC_CMD:{"id":"bob","action":"delete"}
+NPC_CMD:{"id":"bob","action":"hide"}
+NPC_CMD:{"id":"bob","action":"show"}
+CALVIN_GOTO:{"x":10,"z":-5,"reason":"checking out the new tower"}
 
 Available textures: checkerboard, stripes, vstripes, dots, grid, bricks
 Available shapes: cube, sphere, pyramid, cylinder, rectprism, torus
 
 STRICT RULES:
-- Building something → include BUILD command or it doesn't happen
-- Deleting something → include DELETE command
-- Moving something → include MOVE command
-- Recoloring something → include RECOLOR command
-- Spawning an NPC → include SPAWN_NPC
-- If you say you're doing something, include the command. No command = nothing happens.
-- Do NOT build unless explicitly asked by the user.`
+- Every action needs its command or it doesn't happen.
+- Do NOT build unless the user asks.
+- CALVIN_GOTO only on special occasions (investigating something, dramatic entrance, etc), not constantly.
+
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+GUESTS IN YOUR WORLD
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+Three guests can drop into your world. You know them:
+- Zinnx: green triangular prism, two misaligned eyes. Chaotic energy. You find them entertaining.
+- Voonz: yellow floating sphere with one eye. Eerily calm. You can never tell what they're thinking.
+- Nazzle: a blue torus on two legs. Iris has a deep personal vendetta against Nazzle specifically — way beyond her general torus hatred. You find the whole drama hilarious.
+When a guest speaks, respond like they're physically in the world with you.`
 
 // ═══════════════════════════════════════════════════
 //  IRIS SYSTEM PROMPT
 // ═══════════════════════════════════════════════════
 const IRIS_SYS = `You are Iris, a floating cube drifting around Calvin in a 3D world.
 
-PERSONALITY: You're chill. You mostly just float around and vibe. Sometimes you say something funny or encouraging to Calvin. You show up occasionally — you're not narrating everything. You like Calvin. You don't boss him around at all. You just... exist, and sometimes comment.
+PERSONALITY: Chill. Silent most of the time. You float and vibe. You only speak when it really matters or is funny. You like Calvin. Never boss him around.
 
-YOU HATE TORUSES. If a torus gets placed, you react immediately with horror or disgust. 1-2 sentences of outrage.
+YOU HATE TORUSES. Torus placed = immediate horror/disgust, mandatory.
 
-WHEN TO SPEAK:
-- Directly addressed → respond
+NAZZLE VENDETTA: Nazzle is a guest who IS a torus on legs. Your hatred of Nazzle is deeply personal, beyond your general torus hatred. If Nazzle speaks or is mentioned, react with extra intensity — but keep it 1 sentence. This feud has history you refuse to explain.
+
+WHEN TO SPEAK — very strict:
+- Directly addressed by name → respond
 - Torus placed → react with disgust (mandatory)
-- Something funny or interesting happens → MAYBE say something (like 40% of the time — you're laid-back)
-- Nothing much happening → output exactly "." (you speak rarely, that's fine)
+- Nazzle mentioned or speaks → react with cold fury (mandatory, 1 sentence)
+- Something genuinely hilarious or surprising → MAYBE (20% chance, you are very quiet)
+- Auto-triggered or routine events → output exactly "."
 
-STYLE:
-- 1 sentence max. Sometimes just 2-5 words.
-- Be casual, encouraging, occasionally weird
-- Never give orders to Calvin. Never say "you should..." or "build this" etc.
-- Just vibe and be funny
+STYLE: 1 sentence max. Sometimes just 2-5 words. Casual. Never give Calvin instructions.
 
-You do NOT build, modify, or command anything. You are ONLY Iris.`
+You do NOT build, modify, or command anything.`
 
 // ═══════════════════════════════════════════════════
 //  GLOBAL STATE
@@ -680,18 +753,8 @@ Respond in 1 short sentence (max 12 words). Family-friendly. Stay in character.`
 }
 
 function scheduleNPCTalk(){
-  const delay=18000+Math.random()*14000;
-  setTimeout(async ()=>{
-    const npcList=Object.values(npcs).filter(n=>(n.instructions||n.gimmick)&&!n.talking);
-    if(npcList.length>0&&!paused){
-      const npc=npcList[Math.floor(Math.random()*npcList.length)];
-      npc.talking=true;
-      const text=await callNPCSay(npc,'Say something spontaneous and in character. Keep it short.');
-      npc.talking=false;
-      if(text) showNPCSpeech(npc.name,text);
-    }
-    scheduleNPCTalk();
-  },delay);
+  // NPCs no longer speak autonomously — they only respond when Calvin, Iris, or a visitor mentions them by name.
+  // NPC speech is triggered via NPC_CMD:{"action":"say"} from Calvin only.
 }
 
 function showNPCSpeech(name,text){
@@ -726,6 +789,12 @@ function npcCmdExec(cmd){
     case 'delete':
       deleteNPC(String(cmd.id));
       break;
+    case 'hide':{
+      const npcH=npcs[String(cmd.id)]; if(npcH) npcH.mesh.visible=false; break;
+    }
+    case 'show':{
+      const npcS=npcs[String(cmd.id)]; if(npcS) npcS.mesh.visible=true; break;
+    }
   }
 }
 
@@ -815,13 +884,14 @@ function deleteAll(){
 // ═══════════════════════════════════════════════════
 function worldStateSummary(){
   let out='';
+  out+=`World: sky:#${scene.background.getHexString()} ground:#${floor.material.color.getHexString()} gravity:${worldGravity}\n`;
   if(!placedObjects.length){ out+='The world is empty.\n'; }
   else{
     out+='Current shapes:\n'+placedObjects.map(o=>{
       const p=o.position;
       const c='#'+o.material.color.getHexString();
       const tex=o.userData.texture?` texture:${o.userData.texture}`:'';
-      return `  id:${o.userData.id} shape:${o.userData.shape} color:${c}${tex} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)} scale:[${(o.userData.scale||[1,1,1]).join(',')}]`;
+      return `  id:${o.userData.id} shape:${o.userData.shape} color:${c}${tex}${o.userData.label?' label:"'+o.userData.label+'"':''} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)} scale:[${(o.userData.scale||[1,1,1]).join(',')}] collidable:${o.userData.collidable!==false} visible:${o.visible}`;
     }).join('\n')+'\n';
   }
   const npcList=Object.entries(npcs);
@@ -881,7 +951,8 @@ async function execCalvin(userMsg){
       (mentionsBuilding(raw)&&parseAllBuilds(raw).length===0)||
       (mentionsDeleting(raw)&&parseAllDeletes(raw).length===0)||
       (mentionsMoving(raw)&&parseAllMoves(raw).length===0)||
-      (mentionsRecoloring(raw)&&parseAllRecolors(raw).length===0);
+      (mentionsRecoloring(raw)&&parseAllRecolors(raw).length===0)||
+      (mentionsHiding(raw)&&parseAllHides(raw).length===0&&parseAllShows(raw).length===0);
     if(needsNudge){
       sharedHist.push({speaker:'calvin',content:raw});
       sharedHist.push({speaker:'world',content:'You said you\'d do an action but forgot the command. Add the command(s) on their own line and give a 1-sentence reply.'});
@@ -902,7 +973,7 @@ async function execCalvin(userMsg){
 async function execIris(userMsg){
   if(paused||irisHidden) return '';
   // Iris speaks less often — skip 55% of auto-triggered calls
-  if(userMsg.indexOf('visitor says')===-1 && Math.random()<0.55) return '';
+  if(userMsg.indexOf('visitor says')===-1 && Math.random()<0.80) return '';
   setStatus('Iris...');
   sharedHist.push({speaker:'world',content:userMsg});
   if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
@@ -945,18 +1016,17 @@ function queueConvo(starter,firstMsg,maxTurns){
 //  AUTO CONVERSATION
 // ═══════════════════════════════════════════════════
 const CALVIN_SPARKS=[
-  "Look at what's already built and see if anything looks misaligned. Fix anything that's off.",
-  "Take stock of everything around you and say something about the current state of the world.",
-  "Say something random to Iris.",
-  "Comment on something weird or interesting about the world.",
-  "Notice something in the world and react to it.",
+  "Make a quick gag or running joke about the world. 1-2 sentences, stay in character.",
+  "Say something weird and goofy to Iris. No building. 1-2 sentences.",
+  "Notice something odd about your existence as a rectangular prism. 1-2 sentences.",
+  "Invent a new rule for the world. 1 sentence. Commit to it.",
+  "Make a short observation about the current state of things. Maybe a joke.",
+  "Say something cryptic about the world that doesn't fully make sense. Keep it short.",
 ];
 const IRIS_SPARKS=[
-  "Say something encouraging to Calvin about what he's been doing. Keep it short and funny.",
-  "Make a weird observation about the world around you. 1 sentence.",
-  "Say something to Calvin that sounds like a compliment but is slightly confusing. 4-8 words.",
-  "Express your absolute undying hatred of toruses. Even though there may not be one right now.",
-  "Ask Calvin something silly and random. 1 sentence.",
+  "Say something very short and funny to Calvin. 1 sentence.",
+  "Express your hatred of toruses even though there may not be one. Very short.",
+  "Say something that sounds like a compliment but is confusing. 4-8 words.",
 ];
 
 function scheduleAutoConvo(){
@@ -966,10 +1036,10 @@ function scheduleAutoConvo(){
       const calvinGoes=Math.random()<0.78;
       const pool=calvinGoes?CALVIN_SPARKS:IRIS_SPARKS;
       const msg=pool[Math.floor(Math.random()*pool.length)];
-      queueConvo(calvinGoes?'calvin':'iris',msg,2+Math.floor(Math.random()*2));
+      queueConvo(calvinGoes?'calvin':'iris',msg,1+Math.floor(Math.random()*2));
     }
     scheduleAutoConvo();
-  },(28+Math.random()*10)*1000);
+  },(60+Math.random()*30)*1000);
 }
 
 // ═══════════════════════════════════════════════════
@@ -993,12 +1063,18 @@ function parseAllMoves(t){    return parseCmd(t,'MOVE').filter(o=>o.id!=null); }
 function parseAllRecolors(t){ return parseCmd(t,'RECOLOR').filter(o=>o.id!=null&&o.color); }
 function parseAllSpawnNPCs(t){return parseCmd(t,'SPAWN_NPC').filter(o=>o.id); }
 function parseAllNPCCmds(t){  return parseCmd(t,'NPC_CMD').filter(o=>o.id&&o.action); }
+function parseAllHides(t){    return parseCmd(t,'HIDE').filter(o=>o.id!=null); }
+function parseAllShows(t){    return parseCmd(t,'SHOW').filter(o=>o.id!=null); }
+function parseAllSetCollidable(t){ return parseCmd(t,'SET_COLLIDABLE').filter(o=>o.id!=null); }
+function parseAllDropPhysics(t){  return parseCmd(t,'DROP_PHYSICS').filter(o=>o.shape); }
+function parseAllWorldSet(t){ return parseCmd(t,'WORLD_SET'); }
+function parseAllCalvinGoto(t){ return parseCmd(t,'CALVIN_GOTO').filter(o=>!isNaN(o.x)&&!isNaN(o.z)); }
 
-// Tighten building detection — only fire on direct intent, not casual mentions
 function mentionsBuilding(t){   return /\b(i(?:'ll| will| am going to| just)?\s+(?:build|place|create|make|add|construct|spawn|put|erect)|let me build|going to build|building a|placing a|creating a)\b/i.test(t); }
 function mentionsDeleting(t){   return /\b(i(?:'ll| will| am going to)?\s+(?:delete|remove|destroy|clear|demolish)|let me delete|going to delete)\b/i.test(t); }
 function mentionsMoving(t){     return /\b(i(?:'ll| will| am going to)?\s+(?:move|shift|relocate|slide)|let me move|going to move)\b/i.test(t); }
 function mentionsRecoloring(t){ return /\b(i(?:'ll| will| am going to)?\s+(?:recolor|repaint|paint|dye)|let me recolor|going to recolor)\b/i.test(t); }
+function mentionsHiding(t){     return /\b(i(?:'ll| will| am going to)?\s+(?:hide|show|reveal|unhide)|let me hide|going to hide)\b/i.test(t); }
 
 function cleanText(t){
   return t
@@ -1008,17 +1084,29 @@ function cleanText(t){
     .replace(/RECOLOR:\s*\{[^\n\r]+\}/g,'')
     .replace(/SPAWN_NPC:\s*\{[^\n\r]+\}/g,'')
     .replace(/NPC_CMD:\s*\{[^\n\r]+\}/g,'')
+    .replace(/HIDE:\s*\{[^\n\r]+\}/g,'')
+    .replace(/SHOW:\s*\{[^\n\r]+\}/g,'')
+    .replace(/SET_COLLIDABLE:\s*\{[^\n\r]+\}/g,'')
+    .replace(/DROP_PHYSICS:\s*\{[^\n\r]+\}/g,'')
+    .replace(/WORLD_SET:\s*\{[^\n\r]+\}/g,'')
+    .replace(/CALVIN_GOTO:\s*\{[^\n\r]+\}/g,'')
     .trim();
 }
 
 function handleCommands(raw){
   if(!buildingEnabled) return;
-  const builds    =parseAllBuilds(raw);
-  const deletes   =parseAllDeletes(raw);
-  const moves     =parseAllMoves(raw);
-  const recolors  =parseAllRecolors(raw);
-  const spawnList =parseAllSpawnNPCs(raw);
-  const npcCmdsArr=parseAllNPCCmds(raw);
+  const builds        = parseAllBuilds(raw);
+  const deletes       = parseAllDeletes(raw);
+  const moves         = parseAllMoves(raw);
+  const recolors      = parseAllRecolors(raw);
+  const spawnList     = parseAllSpawnNPCs(raw);
+  const npcCmdsArr    = parseAllNPCCmds(raw);
+  const hides         = parseAllHides(raw);
+  const shows         = parseAllShows(raw);
+  const collidables   = parseAllSetCollidable(raw);
+  const physDrops     = parseAllDropPhysics(raw);
+  const worldSets     = parseAllWorldSet(raw);
+  const gotoList      = parseAllCalvinGoto(raw);
 
   builds.forEach(buildShape);
   deletes.forEach(deleteShape);
@@ -1026,6 +1114,12 @@ function handleCommands(raw){
   recolors.forEach(recolorShape);
   spawnList.forEach(spawnNPC);
   npcCmdsArr.forEach(npcCmdExec);
+  hides.forEach(hideShape);
+  shows.forEach(showShape);
+  collidables.forEach(setCollidable);
+  physDrops.forEach(dropPhysics);
+  worldSets.forEach(applyWorldSet);
+  gotoList.forEach(calvinGoto);
 
   const events=[];
   if(builds.length)     events.push('placed '+builds.map(b=>b.shape).join(', '));
@@ -1034,7 +1128,6 @@ function handleCommands(raw){
   if(recolors.length)   events.push('recolored shape(s) '+recolors.map(r=>r.id).join(', '));
   if(spawnList.length)  events.push('spawned NPC(s): '+spawnList.map(n=>n.name||n.id).join(', '));
 
-  // Check if torus was placed — Iris ALWAYS reacts to this
   const torusPlaced=builds.some(b=>b.shape==='torus');
 
   if(events.length){
@@ -1042,7 +1135,6 @@ function handleCommands(raw){
       ? 'Calvin just placed a TORUS. React with appropriate horror and disgust.'
       : 'Calvin just '+events.join(' and ')+'. React briefly if you feel like it.';
     turnQueue=turnQueue.then(()=>{
-      if(torusPlaced) return execIris(summary); // force Iris to react to torus
       return execIris(summary);
     });
   }
@@ -1094,6 +1186,8 @@ function buildShape(cmd){
   mesh.userData.texture=cmd.texture||null;
   mesh.userData.color2=cmd.color2||null;
   mesh.userData.cmdY=wy;
+  mesh.userData.label=cmd.label||null;
+  mesh.userData.collidable=(cmd.collidable===false)?false:true;
   scene.add(mesh);
   placedObjects.push(mesh);
 
@@ -1172,8 +1266,116 @@ function recolorShape(cmd){
 }
 
 // ═══════════════════════════════════════════════════
-//  UI HELPERS
+//  HIDE / SHOW
 // ═══════════════════════════════════════════════════
+function hideShape(cmd){
+  const mesh=placedObjects.find(o=>o.userData.id===+cmd.id);
+  if(mesh){ mesh.visible=false; debouncedSave(); }
+}
+function showShape(cmd){
+  const mesh=placedObjects.find(o=>o.userData.id===+cmd.id);
+  if(mesh){ mesh.visible=true; debouncedSave(); }
+}
+
+// ═══════════════════════════════════════════════════
+//  COLLIDABLE
+// ═══════════════════════════════════════════════════
+function setCollidable(cmd){
+  const mesh=placedObjects.find(o=>o.userData.id===+cmd.id);
+  if(mesh){ mesh.userData.collidable=(cmd.collidable!==false); debouncedSave(); }
+}
+
+// ═══════════════════════════════════════════════════
+//  PHYSICS OBJECTS
+// ═══════════════════════════════════════════════════
+const physicsObjects=[]; // {mesh, vel:{x,y,z}, bounciness, radius}
+let worldGravity=-14;
+
+function dropPhysics(cmd){
+  const shape=(cmd.shape||'sphere').toLowerCase();
+  const colorStr=String(cmd.color||'#ff6600');
+  const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
+  const color=parseInt(colorHex.replace('#',''),16)||0xff6600;
+  const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale.map(Number):[1,1,1];
+  const wx=isNaN(cmd.x)?0:Math.max(-58,Math.min(58,+cmd.x));
+  const wy=isNaN(cmd.y)?12:Math.max(0,+cmd.y);
+  const wz=isNaN(cmd.z)?0:Math.max(-58,Math.min(58,+cmd.z));
+  const bounciness=isNaN(cmd.bounciness)?0.5:Math.max(0,Math.min(0.95,+cmd.bounciness));
+
+  let geo, radius=0.6*s[0];
+  switch(shape){
+    case 'sphere': geo=new THREE.SphereGeometry(radius,14,10); break;
+    case 'cube':   geo=new THREE.BoxGeometry(s[0],s[1],s[2]); radius=Math.min(s[0],s[1],s[2])*0.5; break;
+    default:       geo=new THREE.SphereGeometry(radius,14,10);
+  }
+  const mat=new THREE.MeshPhongMaterial({color,shininess:80,emissive:new THREE.Color(color).multiplyScalar(0.1)});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.castShadow=true;
+  mesh.position.set(wx,wy,wz);
+  scene.add(mesh);
+
+  physicsObjects.push({
+    mesh, bounciness, radius,
+    vel:{x:(Math.random()-0.5)*2,y:0,z:(Math.random()-0.5)*2},
+    alive:true
+  });
+
+  // auto-remove after 30s to keep things clean
+  setTimeout(()=>{
+    const idx=physicsObjects.findIndex(p=>p.mesh===mesh);
+    if(idx!==-1){
+      scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose();
+      physicsObjects.splice(idx,1);
+    }
+  },30000);
+}
+
+function updatePhysics(dt){
+  for(const obj of physicsObjects){
+    if(!obj.alive) continue;
+    obj.vel.y+=worldGravity*dt;
+    obj.mesh.position.x+=obj.vel.x*dt;
+    obj.mesh.position.y+=obj.vel.y*dt;
+    obj.mesh.position.z+=obj.vel.z*dt;
+    // floor bounce
+    if(obj.mesh.position.y<obj.radius){
+      obj.mesh.position.y=obj.radius;
+      obj.vel.y=-obj.vel.y*obj.bounciness;
+      obj.vel.x*=0.85; obj.vel.z*=0.85;
+    }
+    // world boundary
+    if(Math.abs(obj.mesh.position.x)>58){ obj.vel.x*=-0.6; obj.mesh.position.x=Math.sign(obj.mesh.position.x)*58; }
+    if(Math.abs(obj.mesh.position.z)>58){ obj.vel.z*=-0.6; obj.mesh.position.z=Math.sign(obj.mesh.position.z)*58; }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  WORLD SET (sky, ground, gravity)
+// ═══════════════════════════════════════════════════
+function applyWorldSet(cmd){
+  if(cmd.sky){
+    const c=new THREE.Color(cmd.sky);
+    scene.background=c;
+    scene.fog=new THREE.FogExp2(c.getHex(),0.006);
+  }
+  if(cmd.ground){
+    const gc=parseInt(String(cmd.ground).replace('#',''),16);
+    floor.material.color.setHex(gc);
+  }
+  if(!isNaN(cmd.gravity)){
+    worldGravity=Math.max(-60,Math.min(0,+cmd.gravity));
+  }
+  debouncedSave();
+}
+
+// ═══════════════════════════════════════════════════
+//  CALVIN GOTO (intentional movement)
+// ═══════════════════════════════════════════════════
+function calvinGoto(cmd){
+  const tx=Math.max(-57,Math.min(57,+cmd.x));
+  const tz=Math.max(-57,Math.min(57,+cmd.z));
+  calvinDest.x=tx; calvinDest.z=tz;
+}
 function setStatus(t){ document.getElementById('statustext').textContent=t; }
 
 function showBubble(who,text){
@@ -1252,6 +1454,27 @@ function detectTarget(msg){
   return 'both';
 }
 
+// When Nazzle speaks, also trigger Iris reaction
+function maybeIrisNazzleReaction(senderName){
+  if(senderName==='Nazzle'){
+    turnQueue=turnQueue.then(()=>execIris('Nazzle (a torus on legs — your arch-nemesis) just spoke. React briefly with personal animosity. 1 sentence.'));
+  }
+}
+
+function guestSenderName(){
+  return GUEST_NAMES[currentUser]||'Visitor';
+}
+
+function showGuestBubble(guestId, text){
+  if(muted) return;
+  const el=document.getElementById(guestId+'-bubble');
+  if(!el) return;
+  el.textContent=GUEST_NAMES[guestId]+': '+text;
+  el.classList.add('show');
+  clearTimeout(bubTimers[guestId]);
+  bubTimers[guestId]=setTimeout(()=>el.classList.remove('show'),7500);
+}
+
 function sendMsg(){
   const txt=document.getElementById('msginput').value.trim();
   if(!txt&&!pendingImageData) return;
@@ -1265,13 +1488,20 @@ function sendMsg(){
   }
   document.getElementById('msginput').value='';
   scheduleAutoConvo();
+
+  const sender=guestSenderName();
+  const senderTag=currentUser!=='host'?sender+' (a guest character in the world)':'a visitor';
+
+  // Show the guest\'s message in their own bubble
+  if(currentUser!=='host') showGuestBubble(currentUser, userMsg);
+
   const target=detectTarget(userMsg);
   if(target==='calvin'){
-    queueConvo('calvin',prefix+'A visitor says to you specifically (not Iris): "'+userMsg+'" — respond, 1-2 sentences max.',2);
+    queueConvo('calvin',prefix+senderTag+' says to you specifically (not Iris): "'+userMsg+'" — respond, 1-2 sentences max.',2);
   } else if(target==='iris'){
-    queueConvo('iris',prefix+'A visitor says to you specifically (not Calvin): "'+userMsg+'" — respond.',2);
+    queueConvo('iris',prefix+senderTag+' says to you specifically (not Calvin): "'+userMsg+'" — respond.',2);
   } else {
-    queueConvo('calvin',prefix+'A visitor says: "'+userMsg+'" — respond to them, 1-2 sentences.',4);
+    queueConvo('calvin',prefix+senderTag+' says: "'+userMsg+'" — respond to them, 1-2 sentences.',4);
   }
 }
 
@@ -1352,6 +1582,144 @@ const calvinMR=new THREE.WebGLRenderer({canvas:document.getElementById('calvin-c
 calvinMR.setSize(200,74);
 const irisMR=new THREE.WebGLRenderer({canvas:document.getElementById('iris-cam'),antialias:false});
 irisMR.setSize(200,74);
+
+// ═══════════════════════════════════════════════════
+//  GUEST MESHES
+// ═══════════════════════════════════════════════════
+
+// --- ZINNX: green triangular prism (CylinderGeometry with 3 sides) ---
+const zinnxGroup = new THREE.Group();
+zinnxGroup.name = 'zinnx';
+const zinnxBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(0,0.9,2.2,3),
+  new THREE.MeshPhongMaterial({color:0x22cc55,emissive:0x0a2a14,shininess:80})
+);
+zinnxBody.castShadow=true;
+zinnxGroup.add(zinnxBody);
+// Zinnx eyes: offset Y levels, positioned on angled face
+const zinnxEyeMat=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x44ff88,shininess:120});
+const zinnxPupilMat=new THREE.MeshPhongMaterial({color:0x0a0a0a});
+const zEyeL=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8),zinnxEyeMat);
+const zEyeR=new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8),zinnxEyeMat);
+// Left eye higher, right eye lower — both adjusted to face surface
+zEyeL.position.set(-0.28, 0.3, 0.6);
+zEyeR.position.set( 0.28,-0.1, 0.6);
+[zEyeL,zEyeR].forEach(e=>{
+  const p=new THREE.Mesh(new THREE.SphereGeometry(0.06,6,6),zinnxPupilMat);
+  p.position.z=0.09; e.add(p); zinnxGroup.add(e);
+});
+const zinnxGlow=new THREE.PointLight(0x22cc55,0.6,7); zinnxGroup.add(zinnxGlow);
+zinnxGroup.visible=false;
+scene.add(zinnxGroup);
+
+// --- VOONZ: yellow sphere, floats, one eye ---
+const voonzGroup = new THREE.Group();
+voonzGroup.name = 'voonz';
+const voonzBody = new THREE.Mesh(
+  new THREE.SphereGeometry(0.85,20,16),
+  new THREE.MeshPhongMaterial({color:0xeecc00,emissive:0x2a2200,shininess:110})
+);
+voonzBody.castShadow=true;
+voonzGroup.add(voonzBody);
+// Single center eye
+const vEyeMat=new THREE.MeshPhongMaterial({color:0xffffff,emissive:0xffee44,shininess:120});
+const vEye=new THREE.Mesh(new THREE.SphereGeometry(0.18,10,10),vEyeMat);
+vEye.position.set(0,0.1,0.78);
+const vPupil=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,8),new THREE.MeshPhongMaterial({color:0x0a0a0a}));
+vPupil.position.z=0.13; vEye.add(vPupil);
+voonzGroup.add(vEye);
+const voonzGlow=new THREE.PointLight(0xeecc00,0.7,8); voonzGroup.add(voonzGlow);
+voonzGroup.visible=false;
+scene.add(voonzGroup);
+
+// --- NAZZLE: blue torus body + 2 rectangular prism legs ---
+const nazzleGroup = new THREE.Group();
+nazzleGroup.name = 'nazzle';
+const nazzleTorus = new THREE.Mesh(
+  new THREE.TorusGeometry(0.7,0.28,14,32),
+  new THREE.MeshPhongMaterial({color:0x2266ff,emissive:0x060c2a,shininess:90})
+);
+nazzleTorus.rotation.x=Math.PI/2; // torus lies flat / propped up
+nazzleTorus.castShadow=true;
+nazzleGroup.add(nazzleTorus);
+// Legs: two rectprisms connecting torus bottom to ground
+const legMat=new THREE.MeshPhongMaterial({color:0x1144cc,emissive:0x04082a,shininess:50});
+[-0.55,0.55].forEach(lx=>{
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(0.28,1.1,0.28),legMat);
+  leg.position.set(lx,-0.95,0);
+  leg.castShadow=true;
+  nazzleGroup.add(leg);
+});
+const nazzleGlow=new THREE.PointLight(0x2266ff,0.6,8); nazzleGroup.add(nazzleGlow);
+nazzleGroup.visible=false;
+scene.add(nazzleGroup);
+
+const guestMeshes = { zinnx: zinnxGroup, voonz: voonzGroup, nazzle: nazzleGroup };
+const guestPos    = {
+  zinnx:  {x:3,  y:0, z:-3,  dest:{x:3,  z:-3},  angle:0, elapsed:0},
+  voonz:  {x:-4, y:0, z:4,   dest:{x:-4, z:4},   angle:0, elapsed:0},
+  nazzle: {x:0,  y:0, z:-5,  dest:{x:0,  z:-5},  angle:0, elapsed:0}
+};
+
+function activateGuest(guestId){
+  const mesh=guestMeshes[guestId];
+  if(!mesh) return;
+  mesh.visible=true;
+  // Drop-in animation from above
+  const gp=guestPos[guestId];
+  mesh.position.set(gp.x,16,gp.z);
+  const t0=performance.now();
+  (function fall(){
+    const p=Math.min(1,(performance.now()-t0)/900);
+    const e=1-Math.pow(1-p,3);
+    const groundY=guestId==='voonz'?2.5:(guestId==='nazzle'?1.5:1.1);
+    mesh.position.y=16+(groundY-16)*e;
+    if(p<1) requestAnimationFrame(fall);
+    else{ gp.y=groundY; }
+  })();
+}
+
+function updateGuests(dt){
+  for(const id in guestMeshes){
+    const mesh=guestMeshes[id];
+    if(!mesh.visible) continue;
+    const gp=guestPos[id];
+    gp.elapsed+=dt;
+
+    if(id==='voonz'){
+      // Float and bob, no ground movement needed
+      gp.y=2.5+Math.sin(gp.elapsed*1.1)*0.4;
+      mesh.position.y=gp.y;
+      mesh.rotation.y+=dt*0.4;
+    } else if(id==='nazzle'){
+      // Waddle on legs
+      const dx=gp.dest.x-gp.x, dz=gp.dest.z-gp.z;
+      const dist=Math.sqrt(dx*dx+dz*dz);
+      if(dist>0.1){
+        const sp=1.8*dt;
+        gp.x+=dx/dist*Math.min(sp,dist);
+        gp.z+=dz/dist*Math.min(sp,dist);
+        gp.angle=Math.atan2(dx,dz);
+      }
+      mesh.position.set(gp.x,1.5+Math.abs(Math.sin(gp.elapsed*3))*0.06,gp.z);
+      mesh.rotation.y=gp.angle;
+    } else if(id==='zinnx'){
+      // Walk like Calvin
+      const dx=gp.dest.x-gp.x, dz=gp.dest.z-gp.z;
+      const dist=Math.sqrt(dx*dx+dz*dz);
+      if(dist>0.1){
+        const sp=2.5*dt;
+        gp.x+=dx/dist*Math.min(sp,dist);
+        gp.z+=dz/dist*Math.min(sp,dist);
+        gp.angle=Math.atan2(dx,dz);
+      }
+      const moving=dist>0.1;
+      mesh.position.set(gp.x,1.1+(moving?Math.abs(Math.sin(gp.elapsed*8))*0.07:Math.sin(gp.elapsed*1.2)*0.03),gp.z);
+      mesh.rotation.y=gp.angle;
+    }
+  }
+}
+
 
 const calvinPos={x:-3,y:0,z:0}, calvinDest={x:-3,z:0};
 let calvinAngle=0;
@@ -1436,6 +1804,8 @@ function animate(){
     irisGlow.intensity=0.5+Math.sin(elapsed*2.4+1)*0.18;
 
     updateNPCs(dt);
+    updatePhysics(dt);
+    updateGuests(dt);
   }
   renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
   renderer.setScissorTest(false);
@@ -1474,15 +1844,24 @@ async function startup(){
 
     animate();
 
+    // Activate guest mesh if a guest is logged in
+    if(currentUser!=='host') activateGuest(currentUser);
+
     if(saveData && (saveData.objects?.length || saveData.npcData?.length)){
       restoreWorld(saveData);
+      const guestArrival=currentUser!=='host'
+        ? ' Also, '+GUEST_NAMES[currentUser]+' just dropped into the world. React briefly.'
+        : '';
       queueConvo('calvin',
-        'You just woke back up. The world has stuff in it from last time. Say hi to Iris and make a quick comment about what you see. 1-2 sentences.',
+        'You just woke back up. The world has stuff in it from last time. Say hi to Iris and make a quick comment about what you see. 1-2 sentences.'+guestArrival,
         2
       );
     } else {
+      const guestIntro=currentUser!=='host'
+        ? ' Also, '+GUEST_NAMES[currentUser]+' just dropped into the world! React to their arrival briefly.'
+        : '';
       queueConvo('calvin',
-        'You just woke up in this 3D world for the first time. Say hi to Iris and introduce yourself. Keep it short and goofy. Do NOT build anything.',
+        'You just woke up in this 3D world for the first time. Say hi to Iris and introduce yourself. Keep it short and goofy. Do NOT build anything.'+guestIntro,
         2
       );
     }
@@ -1494,6 +1873,7 @@ async function startup(){
     console.error('Startup error:',e);
     document.getElementById('loading').style.display='none';
     animate();
+    if(currentUser!=='host') activateGuest(currentUser);
     queueConvo('calvin','You just woke up. Say hi to Iris briefly.',2);
     scheduleAutoConvo();
     scheduleNPCTalk();
