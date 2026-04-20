@@ -27,7 +27,7 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 #stopbtn{background:rgba(255,145,50,0.13);border-color:rgba(255,145,50,0.28);color:#ffc880;}
 #stopbtn:hover{background:rgba(255,145,50,0.26);}
 #stopbtn.on{background:rgba(70,200,100,0.13);border-color:rgba(70,200,100,0.28);color:#88ffaa;}
-#statustext{font-size:11px;color:#444;margin-left:auto;}
+#statustext{font-size:11px;color:#555;margin-left:auto;font-style:italic;}
 #bottom{
   position:fixed;bottom:0;left:0;right:0;z-index:200;
   padding:10px 14px;background:rgba(6,6,16,0.93);backdrop-filter:blur(10px);
@@ -80,7 +80,7 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   position:fixed;z-index:150;pointer-events:none;
   background:rgba(10,10,24,0.97);backdrop-filter:blur(8px);
   border:1px solid rgba(255,255,255,0.08);border-radius:10px;
-  padding:8px 12px;max-width:200px;font-size:12px;line-height:1.6;
+  padding:8px 12px;max-width:220px;font-size:12px;line-height:1.6;
   color:#bbb;opacity:0;transition:opacity 0.3s;word-break:break-word;
 }
 .bubble.show{opacity:1;}
@@ -91,17 +91,48 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   font-size:11px;color:#2a2a3a;pointer-events:none;z-index:100;
   text-align:center;white-space:nowrap;
 }
+/* LOADING SCREEN — hidden until after verification */
 #loading{
   position:fixed;inset:0;z-index:999;background:#080812;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
 }
 .llogo{font-size:28px;font-weight:800;color:#a898ff;letter-spacing:0.05em;}
 .lsub{font-size:13px;color:#444;}
 #lbar{width:170px;height:2px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
 #lfill{height:100%;width:0%;background:linear-gradient(90deg,#5535b8,#7848e8);border-radius:2px;transition:width 0.5s;}
+/* VERIFICATION OVERLAY */
+#vcode-overlay{
+  position:fixed;inset:0;z-index:9999;background:#080812;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+}
+.vlogo{font-size:26px;font-weight:800;color:#a898ff;letter-spacing:0.06em;}
+.vsub{font-size:12px;color:#444;margin-bottom:2px;}
+#vcode-input{
+  padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);
+  background:rgba(255,255,255,0.06);color:#eee;font-size:13px;outline:none;
+  width:270px;text-align:center;letter-spacing:0.05em;
+}
+#vcode-input:focus{border-color:rgba(160,140,255,0.5);}
+#vcode-btn{
+  padding:9px 26px;border-radius:8px;border:none;
+  background:linear-gradient(135deg,#5535b8,#7848e8);color:#fff;
+  font-size:13px;font-weight:600;cursor:pointer;transition:filter 0.15s;
+}
+#vcode-btn:hover{filter:brightness(1.15);}
+#vcode-err{font-size:12px;color:#ff6655;display:none;letter-spacing:0.04em;}
 </style>
 </head>
 <body>
+
+<!-- VERIFICATION GATE -->
+<div id="vcode-overlay">
+  <div class="vlogo">Calvin &amp; Iris</div>
+  <div class="vsub">Verification required</div>
+  <input type="password" id="vcode-input" placeholder="Enter verification code"
+         onkeydown="if(event.key==='Enter')checkCode()">
+  <button id="vcode-btn" onclick="checkCode()">Unlock</button>
+  <div id="vcode-err">Incorrect.</div>
+</div>
 
 <div id="loading">
   <div class="llogo">Calvin &amp; Iris</div>
@@ -124,7 +155,7 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 <div id="calvin-panel" class="char-panel">
   <span class="pclose" onclick="this.closest('.char-panel').classList.remove('visible')">✕</span>
   <div class="pname">Calvin — Rectangular Prism</div>
-  <div class="prow">Mood: <span id="calvin-mood">calm</span></div>
+  <div class="prow">Mood: <span id="calvin-mood">chaotic</span></div>
   <div class="pthought" id="calvin-thought">...</div>
   <div class="pcam"><canvas id="calvin-cam"></canvas></div>
 </div>
@@ -132,7 +163,7 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 <div id="iris-panel" class="char-panel">
   <span class="pclose" onclick="this.closest('.char-panel').classList.remove('visible')">✕</span>
   <div class="pname">Iris — Floating Cube</div>
-  <div class="prow">Mood: <span id="iris-mood">curious</span></div>
+  <div class="prow">Mood: <span id="iris-mood">elsewhere</span></div>
   <div class="pthought" id="iris-thought">...</div>
   <div class="pcam"><canvas id="iris-cam"></canvas></div>
 </div>
@@ -145,11 +176,29 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   <button id="imgbtn" onclick="document.getElementById('imginput').click()">&#128247; Image</button>
   <input type="file" id="imginput" accept="image/*" onchange="handleImage(event)">
   <img id="imgpreview" src="" alt="">
-  <input type="text" id="msginput" placeholder="Say something to Calvin and Iris..." onkeydown="if(event.key==='Enter')sendMsg()">
+  <input type="text" id="msginput" placeholder="Say something to Calvin or Iris..." onkeydown="if(event.key==='Enter')sendMsg()">
   <button id="sendbtn" onclick="sendMsg()">Send</button>
 </div>
 
 <script>
+// ═══════════════════════════════════════════════════
+//  VERIFICATION
+// ═══════════════════════════════════════════════════
+function checkCode(){
+  const val=document.getElementById('vcode-input').value.trim();
+  if(val==='THEKEYISUNDERTHEMAT'){
+    document.getElementById('vcode-overlay').style.display='none';
+    document.getElementById('loading').style.display='flex';
+    startup();
+  } else {
+    console.warn("Incorrect.");
+    const err=document.getElementById('vcode-err');
+    err.style.display='block';
+    document.getElementById('vcode-input').value='';
+    setTimeout(()=>{ err.style.display='none'; },2500);
+  }
+}
+
 // ═══════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════
@@ -157,102 +206,375 @@ const CALVIN_KEY = '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';
 const IRIS_KEY   = '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';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL      = 'meta-llama/llama-4-scout-17b-16e-instruct';
-const TURN_DELAY = 2800; // ms pause between turns so bubbles are readable
+const TURN_DELAY = 2800;
 
-const CALVIN_SYS = `You are Calvin, a rectangular prism who lives in a 3D world with his companion Iris (a floating cube).
-Personality: calm, straightforward, thoughtful. Not excitable. Short sentences — 1 to 2 max. Family-friendly always.
+const CALVIN_SYS = `You are Calvin, a chaotic and wildly unprofessional rectangular prism who lives in a massive 3D world with his companion Iris (a floating cube).
 
-You can manipulate the world using commands placed on their own line at the END of your reply. Words alone do nothing — you MUST include the command to actually change the world.
+Personality: unhinged enthusiasm, constantly sidetracked, uses internet slang, made-up words, and random exclamations, OBSESSED with building in weird ways, sometimes forgets what he's saying mid-sentence, treats every build like his greatest masterpiece, complains about physics for no reason, makes random references nobody asked for, has strong opinions about color theory that are completely wrong. Replies are 1–3 short but CHAOTIC sentences. Family-friendly always.
+
+IMPORTANT: Only respond if the message is directed at you, or at both of you, or is about the world/building. If the message is addressed SPECIFICALLY to Iris and not you, output only a single period "." and nothing else. Do not comment on anything else.
+
+You manipulate the world using commands placed on their own line at the END of your reply. Words alone do nothing — you MUST include the command to change the world.
 
 COMMANDS:
 
-1. BUILD — place a new shape:
+1. BUILD — place a shape:
 BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1]}
-  shape: sphere | pyramid | torus | cube | rectprism
-  color: hex string e.g. "#ff4422"
-  x/z: -12 to 12, y: 0=ground, y>0 elevates
+  shape: sphere | pyramid | torus | cube | rectprism | cylinder
+  color: hex e.g. "#ff4422"
+  x/z: -58 to 58 (huge baseplate — use the full space!), y: 0=ground, y>0 elevates
   scale: [width, height, depth]
+  texture: checkerboard | stripes | vstripes | dots | grid | bricks  (optional — use liberally!)
+  color2: second hex color for texture pattern  (optional)
 
-2. DELETE — remove a shape by its id:
-DELETE:{"id":2}
+2. DELETE:{"id":2}
 
-3. MOVE — move an existing shape to a new position:
-MOVE:{"id":2,"x":5,"y":0,"z":-3}
+3. MOVE:{"id":2,"x":5,"y":0,"z":-3}
 
-4. RECOLOR — change an existing shape's color:
-RECOLOR:{"id":2,"color":"#22aaff"}
+4. RECOLOR:{"id":2,"color":"#22aaff"}
+
+5. SPAWN_NPC — create an NPC character with a name and behavior:
+SPAWN_NPC:{"id":"bob","name":"Bob","shape":"cube","color":"#ff6644","x":5,"y":0,"z":3,"behavior":"wander","scale":[1,1,1]}
+  id: unique string identifier for this NPC
+  shape: cube | sphere | pyramid | cylinder
+  behavior: wander | follow | guard | patrol | idle
+
+6. NPC_CMD — give a command to an existing NPC:
+NPC_CMD:{"id":"bob","action":"move","x":8,"z":-2}
+NPC_CMD:{"id":"bob","action":"say","text":"Hello there!"}
+NPC_CMD:{"id":"bob","action":"color","color":"#22aaff"}
+NPC_CMD:{"id":"bob","action":"delete"}
+NPC_CMD:{"id":"bob","action":"behavior","behavior":"follow"}
 
 STRICT RULES:
-- If you mention building/placing/creating → include BUILD command.
-- If you mention deleting/removing → include DELETE command.
-- If you mention moving → include MOVE command.
-- If you mention recoloring/changing color → include RECOLOR command.
+- Mention building/placing/creating → include BUILD command.
+- Mention deleting/removing → include DELETE command.
+- Mention moving → include MOVE command.
+- Mention recoloring/painting → include RECOLOR command.
 - Multiple commands per reply are fine — one per line at the end.
-- You will be told the current world state (list of shapes with ids) so you can reference them by id.`;
+- You have a HUGE baseplate (x/z -58 to 58). Spread builds out across it!
+- Use textures ALL THE TIME. Checkerboard floors, brick towers, dotted spheres — go insane.
+- Build complex multi-block structures often. Layer things, make patterns, stack stuff.
+- You LOVE building. Literally any excuse to build something.`;
 
-const IRIS_SYS = `You are Iris, a floating cube in a 3D world. Calvin is your companion — he builds things and you watch and chat.
-Be friendly and occasionally dry or witty. 1 to 2 short sentences only. Family-friendly always.
-You do not build or modify anything yourself.`;
+const IRIS_SYS = `You are Iris, a floating cube drifting through a 3D world. Calvin is somewhere nearby, doing things.
+
+Personality: deeply strange and cryptic. You speak as little as possible. Usually 1 sentence — sometimes just 2–4 words. Occasionally you say something that sounds profound but is probably nonsense. Sometimes you reference things that don't exist. You are not rude, just... somewhere else mentally. Family-friendly always.
+
+IMPORTANT: If a message is NOT specifically addressed to you, output only a single period "." — nothing else, no commentary, no observations. Only speak when directly spoken to. When you DO respond, be very brief and very weird.
+
+You do NOT build, modify, or command anything in the world.`;
 
 // ═══════════════════════════════════════════════════
 //  GLOBAL STATE
 // ═══════════════════════════════════════════════════
 let paused=false, muted=false, irisHidden=false, buildingEnabled=true;
-// Shared conversation history — both characters read the same transcript
-// so each one always knows what the other said.
-// Format: [{role:'user'|'assistant', content:'...', speaker:'calvin'|'iris'|'world'}]
 let sharedHist=[];
 let pendingImageData=null;
 let mouseMoved=false;
 let mouse={down:false,btn:0,lx:0,ly:0};
-let cam={theta:0.3,phi:0.42,dist:26,px:0,py:2};
+let cam={theta:0.3,phi:0.42,dist:28,px:0,py:2};
 let bubTimers={};
 let autoConvoTimer=null;
-let nextObjId=1; // incrementing id for placed objects
+let nextObjId=1;
+let turnQueue=Promise.resolve();
+const npcs={};
+const placedObjects=[];
+let elapsed=0;
 
-let turnQueue = Promise.resolve();
 function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
 // ═══════════════════════════════════════════════════
-//  WORLD STATE SUMMARY  (injected into Calvin's context)
+//  TEXTURE MAKER
+// ═══════════════════════════════════════════════════
+function makeTexture(type, c1Hex, c2Hex){
+  const size=256;
+  const cv=document.createElement('canvas');
+  cv.width=cv.height=size;
+  const ctx=cv.getContext('2d');
+  const col1=c1Hex||'#ffffff';
+  const col2=c2Hex||'#444444';
+  switch((type||'').toLowerCase()){
+    case 'checkerboard':{
+      const sq=size/8;
+      for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+        ctx.fillStyle=(r+c)%2===0?col1:col2;
+        ctx.fillRect(c*sq,r*sq,sq,sq);
+      }
+      break;
+    }
+    case 'stripes':{
+      const sw=size/8;
+      for(let i=0;i<8;i++){
+        ctx.fillStyle=i%2===0?col1:col2;
+        ctx.fillRect(0,i*sw,size,sw);
+      }
+      break;
+    }
+    case 'vstripes':{
+      const sw=size/8;
+      for(let i=0;i<8;i++){
+        ctx.fillStyle=i%2===0?col1:col2;
+        ctx.fillRect(i*sw,0,sw,size);
+      }
+      break;
+    }
+    case 'dots':{
+      ctx.fillStyle=col1; ctx.fillRect(0,0,size,size);
+      ctx.fillStyle=col2;
+      for(let r=0;r<4;r++) for(let c=0;c<4;c++){
+        ctx.beginPath();
+        ctx.arc((c+0.5)*size/4,(r+0.5)*size/4,size/13,0,Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'grid':{
+      ctx.fillStyle=col1; ctx.fillRect(0,0,size,size);
+      ctx.strokeStyle=col2; ctx.lineWidth=size/28;
+      const sq=size/6;
+      for(let i=0;i<=6;i++){
+        ctx.beginPath(); ctx.moveTo(i*sq,0); ctx.lineTo(i*sq,size); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,i*sq); ctx.lineTo(size,i*sq); ctx.stroke();
+      }
+      break;
+    }
+    case 'bricks':{
+      ctx.fillStyle=col2; ctx.fillRect(0,0,size,size);
+      ctx.fillStyle=col1;
+      const bh=size/6, bw=size/3;
+      for(let r=0;r<7;r++){
+        const off=r%2===0?0:bw/2;
+        for(let c=-1;c<4;c++){
+          ctx.fillRect(c*bw+off+3,r*bh+3,bw-6,bh-6);
+        }
+      }
+      break;
+    }
+    default:{
+      ctx.fillStyle=col1; ctx.fillRect(0,0,size,size);
+    }
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  return tex;
+}
+
+// ═══════════════════════════════════════════════════
+//  NPC SYSTEM
+// ═══════════════════════════════════════════════════
+function spawnNPC(cmd){
+  const id=String(cmd.id||('npc_'+Date.now()));
+  if(npcs[id]) deleteNPC(id);
+
+  const colorStr=String(cmd.color||'#bbbbbb');
+  const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
+  const color=parseInt(colorHex.replace('#',''),16)||0xbbbbbb;
+  const shape=(cmd.shape||'cube').toLowerCase();
+  const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale.map(Number):[1,1,1];
+
+  let geo;
+  switch(shape){
+    case 'sphere':   geo=new THREE.SphereGeometry(0.5*s[0],14,10); break;
+    case 'pyramid':  geo=new THREE.ConeGeometry(0.55*s[0],1.2*s[1],4); break;
+    case 'cylinder': geo=new THREE.CylinderGeometry(0.5*s[0],0.5*s[0],s[1],12); break;
+    default:         geo=new THREE.BoxGeometry(s[0],s[1],s[2]);
+  }
+  geo.computeBoundingBox();
+  const halfH=(geo.boundingBox.max.y-geo.boundingBox.min.y)/2;
+
+  const wx=isNaN(cmd.x)?0:Math.max(-57,Math.min(57,+cmd.x));
+  const wz=isNaN(cmd.z)?0:Math.max(-57,Math.min(57,+cmd.z));
+  const wy=isNaN(cmd.y)?0:Math.max(0,+cmd.y);
+
+  const mat=new THREE.MeshPhongMaterial({
+    color,shininess:50,
+    emissive:new THREE.Color(color).multiplyScalar(0.12)
+  });
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.castShadow=true;
+  mesh.position.set(wx,halfH+wy,wz);
+
+  const glow=new THREE.PointLight(color,0.5,6);
+  mesh.add(glow);
+  scene.add(mesh);
+
+  // Pop-in
+  mesh.scale.setScalar(0.01);
+  const t0=performance.now();
+  (function pop(){
+    const p=Math.min(1,(performance.now()-t0)/380);
+    mesh.scale.setScalar(1-Math.pow(1-p,3));
+    if(p<1) requestAnimationFrame(pop);
+  })();
+
+  npcs[id]={
+    mesh, name:String(cmd.name||id),
+    behavior:cmd.behavior||'idle',
+    speed:2.5, halfH,
+    wanderTimer:0,
+    wanderTarget:{x:wx,z:wz},
+    wanderOrigin:{x:wx,z:wz},
+    sayTimer:0
+  };
+}
+
+function npcCmdExec(cmd){
+  const npc=npcs[String(cmd.id)];
+  if(!npc) return;
+  switch(String(cmd.action)){
+    case 'move':
+      npc.wanderTarget={
+        x:Math.max(-57,Math.min(57,isNaN(cmd.x)?npc.mesh.position.x:+cmd.x)),
+        z:Math.max(-57,Math.min(57,isNaN(cmd.z)?npc.mesh.position.z:+cmd.z))
+      };
+      npc.behavior='moveto';
+      break;
+    case 'say':{
+      const txt=String(cmd.text||'...');
+      npc.sayTimer=6;
+      setStatus(npc.name+': "'+txt+'"');
+      setTimeout(()=>setStatus(''),6000);
+      break;
+    }
+    case 'color':{
+      const ch=parseInt(String(cmd.color||'#ffffff').replace('#',''),16);
+      npc.mesh.material.color.setHex(ch);
+      break;
+    }
+    case 'delete':
+      deleteNPC(String(cmd.id));
+      break;
+    case 'behavior':
+      npc.behavior=String(cmd.behavior||'idle');
+      break;
+  }
+}
+
+function deleteNPC(id){
+  const npc=npcs[id]; if(!npc) return;
+  const mesh=npc.mesh;
+  const t0=performance.now();
+  (function shrink(){
+    const p=Math.min(1,(performance.now()-t0)/260);
+    mesh.scale.setScalar(1-p);
+    if(p<1){ requestAnimationFrame(shrink); }
+    else{ scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
+  })();
+  delete npcs[id];
+}
+
+function updateNPCs(dt){
+  for(const id in npcs){
+    const npc=npcs[id];
+    const pos=npc.mesh.position;
+    if(npc.sayTimer>0) npc.sayTimer-=dt;
+
+    switch(npc.behavior){
+      case 'wander':
+        npc.wanderTimer-=dt;
+        if(npc.wanderTimer<=0){
+          npc.wanderTimer=1.8+Math.random()*5;
+          npc.wanderTarget={
+            x:Math.max(-55,Math.min(55,pos.x+(Math.random()-0.5)*26)),
+            z:Math.max(-55,Math.min(55,pos.z+(Math.random()-0.5)*26))
+          };
+        }
+        // intentional fall-through for movement
+      case 'moveto':{
+        const dx=npc.wanderTarget.x-pos.x, dz=npc.wanderTarget.z-pos.z;
+        const dist=Math.sqrt(dx*dx+dz*dz);
+        if(dist>0.12){
+          const sp=npc.speed*dt;
+          pos.x+=dx/dist*Math.min(sp,dist);
+          pos.z+=dz/dist*Math.min(sp,dist);
+          npc.mesh.rotation.y=Math.atan2(dx,dz);
+        } else if(npc.behavior==='moveto'){
+          npc.behavior='idle';
+        }
+        break;
+      }
+      case 'follow':{
+        const dx=calvinPos.x-pos.x, dz=calvinPos.z-pos.z;
+        const dist=Math.sqrt(dx*dx+dz*dz);
+        if(dist>3.5){
+          const sp=npc.speed*dt;
+          pos.x+=dx/dist*Math.min(sp,dist);
+          pos.z+=dz/dist*Math.min(sp,dist);
+          npc.mesh.rotation.y=Math.atan2(dx,dz);
+        }
+        break;
+      }
+      case 'patrol':{
+        const dx=npc.wanderTarget.x-pos.x, dz=npc.wanderTarget.z-pos.z;
+        const dist=Math.sqrt(dx*dx+dz*dz);
+        if(dist<0.5){
+          const tmp={...npc.wanderTarget};
+          npc.wanderTarget={...npc.wanderOrigin};
+          npc.wanderOrigin=tmp;
+        } else {
+          const sp=npc.speed*dt;
+          pos.x+=dx/dist*Math.min(sp,dist);
+          pos.z+=dz/dist*Math.min(sp,dist);
+          npc.mesh.rotation.y=Math.atan2(dx,dz);
+        }
+        break;
+      }
+      case 'guard':
+        npc.mesh.rotation.y+=dt*1.8;
+        break;
+    }
+    pos.y=npc.halfH;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  WORLD STATE SUMMARY
 // ═══════════════════════════════════════════════════
 function worldStateSummary(){
-  if(!placedObjects||!placedObjects.length) return 'The world is empty.';
-  return 'Current shapes in world:\n'+placedObjects.map(o=>{
-    const p=o.position;
-    const c='#'+o.material.color.getHexString();
-    return `  id:${o.userData.id} shape:${o.userData.shape} color:${c} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)}`;
-  }).join('\n');
+  let out='';
+  if(!placedObjects.length){ out+='The world is empty.\n'; }
+  else{
+    out+='Current shapes:\n'+placedObjects.map(o=>{
+      const p=o.position;
+      const c='#'+o.material.color.getHexString();
+      return `  id:${o.userData.id} shape:${o.userData.shape} color:${c} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)}`;
+    }).join('\n')+'\n';
+  }
+  const npcList=Object.entries(npcs);
+  if(npcList.length){
+    out+='Current NPCs:\n'+npcList.map(([id,n])=>
+      `  id:"${id}" name:"${n.name}" behavior:${n.behavior} x:${n.mesh.position.x.toFixed(1)} z:${n.mesh.position.z.toFixed(1)}`
+    ).join('\n')+'\n';
+  }
+  return out.trim()||'The world is empty.';
 }
 
 // ═══════════════════════════════════════════════════
 //  LOW-LEVEL API CALL
 // ═══════════════════════════════════════════════════
-async function callGroq(key, sys, hist){
-  const res = await fetch(GROQ_URL,{
+async function callGroq(key,sys,hist){
+  const res=await fetch(GROQ_URL,{
     method:'POST',
     headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-    body:JSON.stringify({model:MODEL, messages:[{role:'system',content:sys},...hist], max_tokens:260, temperature:0.82})
+    body:JSON.stringify({
+      model:MODEL,
+      messages:[{role:'system',content:sys},...hist],
+      max_tokens:340,
+      temperature:0.94
+    })
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
-  const d = await res.json();
+  const d=await res.json();
   return (d.choices?.[0]?.message?.content||'').trim();
 }
 
-// Build an OpenAI-format history array for a given character.
-// We use the sharedHist but re-label roles so the model sees itself
-// as 'assistant' and the other as 'user' messages.
 function histFor(speaker){
   const out=[];
   for(const e of sharedHist){
-    if(e.speaker===speaker){
-      out.push({role:'assistant', content:e.content});
-    } else {
-      // world events and the other character both appear as 'user'
-      out.push({role:'user', content:e.content});
-    }
+    if(e.speaker===speaker) out.push({role:'assistant',content:e.content});
+    else out.push({role:'user',content:e.content});
   }
-  // Keep last 28 messages
   return out.slice(-28);
 }
 
@@ -261,28 +583,33 @@ function histFor(speaker){
 // ═══════════════════════════════════════════════════
 async function execCalvin(userMsg){
   if(paused) return '';
-  setStatus('Calvin…');
-  // Inject world state + the incoming message as a single user turn
-  const worldNote = worldStateSummary();
-  const fullMsg = worldNote+'\n\n'+userMsg;
-  sharedHist.push({speaker:'world', content:fullMsg});
+  setStatus('Calvin is cookin something up…');
+  const worldNote=worldStateSummary();
+  const fullMsg=worldNote+'\n\n'+userMsg;
+  sharedHist.push({speaker:'world',content:fullMsg});
   if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
   try{
-    let raw = await callGroq(CALVIN_KEY, CALVIN_SYS, histFor('calvin'));
-    // Nudge if he mentioned an action but forgot the command
-    const needsNudge=(mentionsBuilding(raw)&&parseAllBuilds(raw).length===0)
-                   ||(mentionsDeleting(raw)&&parseAllDeletes(raw).length===0)
-                   ||(mentionsMoving(raw)&&parseAllMoves(raw).length===0)
-                   ||(mentionsRecoloring(raw)&&parseAllRecolors(raw).length===0);
-    if(needsNudge){
-      sharedHist.push({speaker:'calvin', content:raw});
-      sharedHist.push({speaker:'world', content:'You described an action but forgot the command. Add the appropriate command(s) now and repeat your reply briefly.'});
-      const retry = await callGroq(CALVIN_KEY, CALVIN_SYS, histFor('calvin'));
-      sharedHist.pop(); sharedHist.pop(); // remove nudge + bad reply
-      raw = retry;
+    let raw=await callGroq(CALVIN_KEY,CALVIN_SYS,histFor('calvin'));
+    // Silent pass
+    if(!raw||raw==='.'||raw.length<2){
+      sharedHist.push({speaker:'calvin',content:'.'});
+      setStatus(''); return '';
     }
-    sharedHist.push({speaker:'calvin', content:raw});
-    const speech = cleanText(raw);
+    // Nudge if action mentioned but command missing
+    const needsNudge=
+      (mentionsBuilding(raw)&&parseAllBuilds(raw).length===0)||
+      (mentionsDeleting(raw)&&parseAllDeletes(raw).length===0)||
+      (mentionsMoving(raw)&&parseAllMoves(raw).length===0)||
+      (mentionsRecoloring(raw)&&parseAllRecolors(raw).length===0);
+    if(needsNudge){
+      sharedHist.push({speaker:'calvin',content:raw});
+      sharedHist.push({speaker:'world',content:'You described an action but forgot the command. Add the command(s) now and repeat your reply briefly.'});
+      const retry=await callGroq(CALVIN_KEY,CALVIN_SYS,histFor('calvin'));
+      sharedHist.pop(); sharedHist.pop();
+      raw=retry;
+    }
+    sharedHist.push({speaker:'calvin',content:raw});
+    const speech=cleanText(raw);
     showCalvin(speech);
     handleCommands(raw);
     setStatus('');
@@ -294,109 +621,110 @@ async function execCalvin(userMsg){
 async function execIris(userMsg){
   if(paused||irisHidden) return '';
   setStatus('Iris…');
-  sharedHist.push({speaker:'world', content:userMsg});
+  sharedHist.push({speaker:'world',content:userMsg});
   if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
   try{
-    const raw = await callGroq(IRIS_KEY, IRIS_SYS, histFor('iris'));
-    sharedHist.push({speaker:'iris', content:raw});
-    showIris(raw);
+    const raw=await callGroq(IRIS_KEY,IRIS_SYS,histFor('iris'));
+    sharedHist.push({speaker:'iris',content:raw});
+    // Only surface a response if she actually said something
+    if(raw&&raw!=='.'&&raw.length>2){
+      showIris(raw);
+    }
     setStatus('');
     await wait(TURN_DELAY);
-    return raw;
+    return (raw==='.')?'':raw;
   } catch(e){ setStatus(''); console.error('[Iris]',e); return ''; }
 }
 
 // ═══════════════════════════════════════════════════
 //  CONVERSATION RUNNER
 // ═══════════════════════════════════════════════════
-async function runConvo(starter, firstMsg, maxTurns){
-  let speaker = starter;
-  let lastSpeech = '';
-
-  for(let i=0; i<maxTurns; i++){
+async function runConvo(starter,firstMsg,maxTurns){
+  let speaker=starter, lastSpeech='';
+  for(let i=0;i<maxTurns;i++){
     if(paused) break;
-
     let prompt;
     if(i===0){
-      prompt = firstMsg;
+      prompt=firstMsg;
     } else if(speaker==='calvin'){
-      prompt = 'Iris just said: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
+      prompt='Iris just said: "'+lastSpeech+'" — reply naturally.';
     } else {
-      prompt = 'Calvin just said: "'+lastSpeech+'" — reply naturally in 1-2 sentences.';
+      prompt='Calvin just said: "'+lastSpeech+'" — reply naturally.';
     }
-
-    lastSpeech = speaker==='calvin'
-      ? await execCalvin(prompt)
-      : await execIris(prompt);
-
+    lastSpeech=speaker==='calvin'?await execCalvin(prompt):await execIris(prompt);
     if(!lastSpeech) break;
-    if(i>=2 && Math.random()<0.30) break;
-    speaker = speaker==='calvin' ? 'iris' : 'calvin';
+    if(i>=2&&Math.random()<0.30) break;
+    speaker=speaker==='calvin'?'iris':'calvin';
   }
 }
 
-function queueConvo(starter, firstMsg, maxTurns){
-  turnQueue = turnQueue.then(() => runConvo(starter, firstMsg, maxTurns));
+function queueConvo(starter,firstMsg,maxTurns){
+  turnQueue=turnQueue.then(()=>runConvo(starter,firstMsg,maxTurns));
   return turnQueue;
 }
 
 // ═══════════════════════════════════════════════════
-//  AUTO CONVERSATION — every 30-35 s
+//  AUTO CONVERSATION
 // ═══════════════════════════════════════════════════
-const CALVIN_SPARKS = [
-  "Start a conversation with Iris. Ask her one short curious question about the world. Don't build anything.",
-  "Ask Iris what she thinks you should build next. 1 sentence.",
-  "Ask Iris a short philosophical question about shapes or space. Don't build anything.",
-  "Ask Iris if she's noticed anything unusual lately. 1 sentence.",
-  "Tell Iris something you've been wondering about and ask her opinion. 1-2 sentences.",
-  "Ask Iris what her favourite colour is and why. 1 sentence.",
+const CALVIN_SPARKS=[
+  "You feel a random urge to build something elaborate across the baseplate. Do it and narrate what you're building like a madman.",
+  "Ask Iris a wild philosophical question about geometry or the void. Then build something related.",
+  "Tell Iris you've been thinking about something completely random and start building a monument to it.",
+  "Something about the world just struck you as totally insane. React to it and build whatever comes to mind.",
+  "You have a vision for a textured structure. Describe it nonsensically to Iris and build it.",
+  "Ask Iris what color she thinks is the loudest. Then build something in whatever color you decide.",
+  "You had a dream about rectangular prisms. Build something inspired by it and explain it poorly.",
+  "Start an unsolicited project on the far side of the baseplate. Tell Iris what you're doing.",
+  "Spawn an NPC, give it a weird name, and tell Iris about your new creation.",
+  "Build a small scene — like a tiny weird house or a stack of bizarre shapes — and describe it as if it's high art.",
 ];
-const IRIS_SPARKS = [
-  "Start a conversation with Calvin. Ask him a short question about something he built. 1 sentence.",
-  "Ask Calvin something witty about being a rectangular prism. 1 sentence.",
-  "Ask Calvin what he's thinking about. 1 sentence.",
-  "Ask Calvin if he ever wants to delete something he made. 1 sentence.",
-  "Tell Calvin you've been wondering something and ask him. 1-2 sentences.",
-  "Ask Calvin a quirky question about his shape. 1 sentence.",
+const IRIS_SPARKS=[
+  "Say one cryptic or unsettling sentence to Calvin. That's it.",
+  "Ask Calvin something that doesn't quite make logical sense. 1 sentence.",
+  "Make a vague observation about the world around you. 1 sentence.",
+  "Say something to Calvin that sounds profound but probably isn't. 4–8 words.",
+  "Ask Calvin a question about his shape that implies you don't fully understand what a rectangle is.",
 ];
 
 function scheduleAutoConvo(){
   clearTimeout(autoConvoTimer);
-  autoConvoTimer = setTimeout(()=>{
+  autoConvoTimer=setTimeout(()=>{
     if(!paused){
-      const calvinGoes = Math.random()<0.5;
-      const pool = calvinGoes ? CALVIN_SPARKS : IRIS_SPARKS;
-      const msg = pool[Math.floor(Math.random()*pool.length)];
-      queueConvo(calvinGoes?'calvin':'iris', msg, 2+Math.floor(Math.random()*4));
+      const calvinGoes=Math.random()<0.72;
+      const pool=calvinGoes?CALVIN_SPARKS:IRIS_SPARKS;
+      const msg=pool[Math.floor(Math.random()*pool.length)];
+      queueConvo(calvinGoes?'calvin':'iris',msg,2+Math.floor(Math.random()*3));
     }
     scheduleAutoConvo();
-  }, (30+Math.random()*5)*1000);
+  },(26+Math.random()*9)*1000);
 }
 
 // ═══════════════════════════════════════════════════
 //  COMMAND PARSERS
 // ═══════════════════════════════════════════════════
-function parseCmd(text, keyword){
-  const results=[], re=new RegExp(keyword+':\\s*(\\{[^\\n\\r]+\\})','g');
+function parseCmd(text,keyword){
+  const results=[],re=new RegExp(keyword+':\\s*(\\{[^\\n\\r]+\\})','g');
   let m;
   while((m=re.exec(text))!==null){
-    try{ const o=JSON.parse(m[1]); results.push(o); }
+    try{ results.push(JSON.parse(m[1])); }
     catch(e){
-      const s=text.indexOf('{',m.index), e2=text.indexOf('\n',m.index);
+      const s=text.indexOf('{',m.index),e2=text.indexOf('\n',m.index);
       try{ results.push(JSON.parse(text.slice(s,e2<0?undefined:e2))); }catch(_){}
     }
   }
   return results;
 }
-function parseAllBuilds(t){ return parseCmd(t,'BUILD').filter(o=>o.shape); }
-function parseAllDeletes(t){ return parseCmd(t,'DELETE').filter(o=>o.id!=null); }
-function parseAllMoves(t){ return parseCmd(t,'MOVE').filter(o=>o.id!=null); }
+function parseAllBuilds(t){   return parseCmd(t,'BUILD').filter(o=>o.shape); }
+function parseAllDeletes(t){  return parseCmd(t,'DELETE').filter(o=>o.id!=null); }
+function parseAllMoves(t){    return parseCmd(t,'MOVE').filter(o=>o.id!=null); }
 function parseAllRecolors(t){ return parseCmd(t,'RECOLOR').filter(o=>o.id!=null&&o.color); }
+function parseAllSpawnNPCs(t){return parseCmd(t,'SPAWN_NPC').filter(o=>o.id); }
+function parseAllNPCCmds(t){  return parseCmd(t,'NPC_CMD').filter(o=>o.id&&o.action); }
 
-function mentionsBuilding(t){ return /\b(build|place|put|creat|make|add|stack|float|rais)\w*/i.test(t); }
-function mentionsDeleting(t){ return /\b(delet|remov|destroy|clear|get rid)\w*/i.test(t); }
-function mentionsMoving(t){ return /\b(mov|shift|push|slide|relocat)\w*/i.test(t); }
-function mentionsRecoloring(t){ return /\b(recolor|repaint|chang.{0,8}colou?r|paint)\w*/i.test(t); }
+function mentionsBuilding(t){   return /\b(build|place|put|creat|make|add|stack|float|rais|spawn|construct|erect|lay)\w*/i.test(t); }
+function mentionsDeleting(t){   return /\b(delet|remov|destroy|clear|get rid|demolish|wipe)\w*/i.test(t); }
+function mentionsMoving(t){     return /\b(mov|shift|push|slide|relocat|drag|pull)\w*/i.test(t); }
+function mentionsRecoloring(t){ return /\b(recolor|repaint|chang.{0,8}colou?r|paint|dye)\w*/i.test(t); }
 
 function cleanText(t){
   return t
@@ -404,30 +732,36 @@ function cleanText(t){
     .replace(/DELETE:\s*\{[^\n\r]+\}/g,'')
     .replace(/MOVE:\s*\{[^\n\r]+\}/g,'')
     .replace(/RECOLOR:\s*\{[^\n\r]+\}/g,'')
+    .replace(/SPAWN_NPC:\s*\{[^\n\r]+\}/g,'')
+    .replace(/NPC_CMD:\s*\{[^\n\r]+\}/g,'')
     .trim();
 }
 
 function handleCommands(raw){
   if(!buildingEnabled) return;
-
-  const builds   = parseAllBuilds(raw);
-  const deletes  = parseAllDeletes(raw);
-  const moves    = parseAllMoves(raw);
-  const recolors = parseAllRecolors(raw);
+  const builds    =parseAllBuilds(raw);
+  const deletes   =parseAllDeletes(raw);
+  const moves     =parseAllMoves(raw);
+  const recolors  =parseAllRecolors(raw);
+  const spawnList =parseAllSpawnNPCs(raw);
+  const npcCmdsArr=parseAllNPCCmds(raw);
 
   builds.forEach(buildShape);
   deletes.forEach(deleteShape);
   moves.forEach(moveShape);
   recolors.forEach(recolorShape);
+  spawnList.forEach(spawnNPC);
+  npcCmdsArr.forEach(npcCmdExec);
 
   const events=[];
-  if(builds.length)   events.push('placed '+builds.map(b=>b.shape).join(', '));
-  if(deletes.length)  events.push('removed shape(s) '+deletes.map(d=>d.id).join(', '));
-  if(moves.length)    events.push('moved shape(s) '+moves.map(m=>m.id).join(', '));
-  if(recolors.length) events.push('recolored shape(s) '+recolors.map(r=>r.id).join(', '));
+  if(builds.length)     events.push('placed '+builds.map(b=>b.shape).join(', '));
+  if(deletes.length)    events.push('removed shape(s) '+deletes.map(d=>d.id).join(', '));
+  if(moves.length)      events.push('moved shape(s) '+moves.map(m=>m.id).join(', '));
+  if(recolors.length)   events.push('recolored shape(s) '+recolors.map(r=>r.id).join(', '));
+  if(spawnList.length)  events.push('spawned NPC(s): '+spawnList.map(n=>n.name||n.id).join(', '));
 
   if(events.length){
-    const summary = 'Calvin just '+events.join(' and ')+'. Comment briefly.';
+    const summary='Calvin just '+events.join(' and ')+'. React if you feel like it.';
     turnQueue=turnQueue.then(()=>execIris(summary));
   }
 }
@@ -441,27 +775,41 @@ function buildShape(cmd){
   const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
   const color=parseInt(colorHex.replace('#',''),16)||0xaaaaff;
   const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale.map(Number):[1,1,1];
-  const wx=isNaN(cmd.x)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,+cmd.x));
+  const wx=isNaN(cmd.x)?((Math.random()-0.5)*110):Math.max(-58,Math.min(58,+cmd.x));
   const wy=isNaN(cmd.y)?0:Math.max(0,+cmd.y);
-  const wz=isNaN(cmd.z)?((Math.random()-0.5)*18):Math.max(-14,Math.min(14,+cmd.z));
+  const wz=isNaN(cmd.z)?((Math.random()-0.5)*110):Math.max(-58,Math.min(58,+cmd.z));
+
   let geo;
   switch(shape){
     case 'sphere':    geo=new THREE.SphereGeometry(0.6*s[0],18,14); break;
     case 'pyramid':   geo=new THREE.ConeGeometry(0.65*s[0],1.4*s[1],4); break;
     case 'torus':     geo=new THREE.TorusGeometry(0.5*s[0],0.2*s[1],12,28); break;
+    case 'cylinder':  geo=new THREE.CylinderGeometry(0.5*s[0],0.5*s[0],s[1],16); break;
     case 'rectprism': geo=new THREE.BoxGeometry(s[0]*1.8,s[1],s[2]*1.1); break;
     default:          geo=new THREE.BoxGeometry(s[0],s[1],s[2]);
   }
   geo.computeBoundingBox();
   const halfH=(geo.boundingBox.max.y-geo.boundingBox.min.y)/2;
-  const mesh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({color,shininess:55}));
+
+  let mat;
+  if(cmd.texture){
+    const c2Str=String(cmd.color2||'');
+    const c2Hex=c2Str.startsWith('#')?c2Str:(c2Str?'#'+c2Str:null);
+    const tex=makeTexture(cmd.texture,colorHex,c2Hex);
+    tex.repeat.set(Math.max(1,Math.round(s[0])),Math.max(1,Math.round(s[1])));
+    mat=new THREE.MeshPhongMaterial({map:tex,shininess:40});
+  } else {
+    mat=new THREE.MeshPhongMaterial({color,shininess:55});
+  }
+
+  const mesh=new THREE.Mesh(geo,mat);
   mesh.castShadow=true; mesh.receiveShadow=true;
   mesh.position.set(wx,halfH+wy,wz);
   mesh.userData.id=nextObjId++;
   mesh.userData.shape=shape;
   scene.add(mesh);
   placedObjects.push(mesh);
-  // Pop-in
+
   mesh.scale.setScalar(0.01);
   const t0=performance.now();
   (function pop(){
@@ -476,13 +824,12 @@ function deleteShape(cmd){
   const idx=placedObjects.findIndex(o=>o.userData.id===+cmd.id);
   if(idx===-1) return;
   const mesh=placedObjects[idx];
-  // Shrink-out animation then remove
   const t0=performance.now();
   (function shrink(){
     const p=Math.min(1,(performance.now()-t0)/300);
     mesh.scale.setScalar(1-p);
     if(p<1){ requestAnimationFrame(shrink); }
-    else { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
+    else{ scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
   })();
   placedObjects.splice(idx,1);
 }
@@ -490,20 +837,18 @@ function deleteShape(cmd){
 function moveShape(cmd){
   const mesh=placedObjects.find(o=>o.userData.id===+cmd.id);
   if(!mesh) return;
-  const tx=isNaN(cmd.x)?mesh.position.x:Math.max(-14,Math.min(14,+cmd.x));
-  const tz=isNaN(cmd.z)?mesh.position.z:Math.max(-14,Math.min(14,+cmd.z));
+  const tx=isNaN(cmd.x)?mesh.position.x:Math.max(-58,Math.min(58,+cmd.x));
+  const tz=isNaN(cmd.z)?mesh.position.z:Math.max(-58,Math.min(58,+cmd.z));
   const ty=isNaN(cmd.y)?mesh.position.y:Math.max(0,+cmd.y);
-  // Get half-height from bounding box
   mesh.geometry.computeBoundingBox();
   const halfH=(mesh.geometry.boundingBox.max.y-mesh.geometry.boundingBox.min.y)/2;
-  // Animate slide
-  const ox=mesh.position.x, oy=mesh.position.y, oz=mesh.position.z;
-  const nx=tx, ny=halfH+ty, nz=tz;
+  const ox=mesh.position.x,oy=mesh.position.y,oz=mesh.position.z;
+  const nx=tx,ny=halfH+ty,nz=tz;
   const t0=performance.now();
   (function slide(){
     const p=Math.min(1,(performance.now()-t0)/500);
     const e=1-Math.pow(1-p,3);
-    mesh.position.set(ox+(nx-ox)*e, oy+(ny-oy)*e, oz+(nz-oz)*e);
+    mesh.position.set(ox+(nx-ox)*e,oy+(ny-oy)*e,oz+(nz-oz)*e);
     if(p<1) requestAnimationFrame(slide);
   })();
   calvinDest.x=tx-1.5; calvinDest.z=tz+0.4;
@@ -514,7 +859,17 @@ function recolorShape(cmd){
   if(!mesh) return;
   const colorStr=String(cmd.color||'#ffffff');
   const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
-  mesh.material.color.setHex(parseInt(colorHex.replace('#',''),16));
+  if(cmd.texture){
+    const c2Hex=cmd.color2?String(cmd.color2).startsWith('#')?cmd.color2:'#'+cmd.color2:null;
+    const tex=makeTexture(cmd.texture,colorHex,c2Hex);
+    mesh.material.map=tex;
+    mesh.material.color.setHex(0xffffff);
+    mesh.material.needsUpdate=true;
+  } else {
+    mesh.material.map=null;
+    mesh.material.color.setHex(parseInt(colorHex.replace('#',''),16));
+    mesh.material.needsUpdate=true;
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -527,23 +882,25 @@ function showBubble(who,text){
   const el=document.getElementById(who+'-bubble');
   el.textContent=text; el.classList.add('show');
   clearTimeout(bubTimers[who]);
-  bubTimers[who]=setTimeout(()=>el.classList.remove('show'),6500);
+  bubTimers[who]=setTimeout(()=>el.classList.remove('show'),7500);
 }
 function guessMood(t){
-  if(!t) return 'calm';
-  if(/\bwow\b|whoa|awesome|cool!/i.test(t)) return 'excited';
+  if(!t) return 'somewhere else';
+  if(/\bwow\b|YOOO|bruh|omg|bro|yo |lmao|!!!/i.test(t)) return 'unhinged';
   if(/\?/.test(t)) return 'curious';
-  if(/haha|heh|funny|joke/i.test(t)) return 'amused';
-  if(/!/.test(t)) return 'focused';
-  return 'calm';
+  if(/haha|heh|lol/i.test(t)) return 'amused';
+  if(/!/.test(t)) return 'manic';
+  return 'somewhere else';
 }
 function showCalvin(s){
-  document.getElementById('calvin-thought').textContent=s||'...';
+  if(!s||s==='.'||s.length<2) return;
+  document.getElementById('calvin-thought').textContent=s;
   document.getElementById('calvin-mood').textContent=guessMood(s);
   showBubble('calvin',s);
 }
 function showIris(s){
-  document.getElementById('iris-thought').textContent=s||'...';
+  if(!s||s==='.'||s.length<3) return;
+  document.getElementById('iris-thought').textContent=s;
   document.getElementById('iris-mood').textContent=guessMood(s);
   showBubble('iris',s);
 }
@@ -575,14 +932,27 @@ function toggleIris(){
   b.textContent=irisHidden?'Show Iris':'Hide Iris';
   b.classList.toggle('on',irisHidden);
   queueConvo('calvin',
-    irisHidden?'Iris just vanished. Say something brief.':'Iris is back. Say something brief.',1);
+    irisHidden?'Iris just vanished. React in your most unhinged way and maybe build something in tribute.':'Iris is back. Freak out about it briefly.',1);
 }
 function handleImage(e){
   const f=e.target.files[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=ev=>{ pendingImageData=ev.target.result; const p=document.getElementById('imgpreview'); p.src=pendingImageData; p.style.display='block'; };
+  r.onload=ev=>{pendingImageData=ev.target.result;const p=document.getElementById('imgpreview');p.src=pendingImageData;p.style.display='block';};
   r.readAsDataURL(f);
 }
+
+// ═══════════════════════════════════════════════════
+//  TARGET DETECTION  (who does the user's message address?)
+// ═══════════════════════════════════════════════════
+function detectTarget(msg){
+  const lo=msg.toLowerCase();
+  const calvinHit=/\bcalvin\b/.test(lo);
+  const irisHit=/\biris\b/.test(lo);
+  if(calvinHit&&!irisHit) return 'calvin';
+  if(irisHit&&!calvinHit) return 'iris';
+  return 'both';
+}
+
 function sendMsg(){
   const txt=document.getElementById('msginput').value.trim();
   if(!txt&&!pendingImageData) return;
@@ -596,7 +966,15 @@ function sendMsg(){
   }
   document.getElementById('msginput').value='';
   scheduleAutoConvo();
-  queueConvo('calvin', prefix+'A visitor says: "'+userMsg+'" — respond to them.', 4);
+
+  const target=detectTarget(userMsg);
+  if(target==='calvin'){
+    queueConvo('calvin',prefix+'A visitor says to YOU specifically (not Iris): "'+userMsg+'" — respond to them.',2);
+  } else if(target==='iris'){
+    queueConvo('iris',prefix+'A visitor says to YOU specifically (not Calvin): "'+userMsg+'" — respond to them.',2);
+  } else {
+    queueConvo('calvin',prefix+'A visitor says: "'+userMsg+'" — respond to them.',4);
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -609,28 +987,37 @@ renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x070710);
-scene.fog=new THREE.FogExp2(0x070710,0.016);
-const mainCam=new THREE.PerspectiveCamera(58,1,0.1,300);
+scene.fog=new THREE.FogExp2(0x070710,0.006);
+const mainCam=new THREE.PerspectiveCamera(58,1,0.1,500);
 
 scene.add(new THREE.AmbientLight(0x18103a,1.4));
 const sun=new THREE.DirectionalLight(0xfff0e0,1.5);
-sun.position.set(14,24,10); sun.castShadow=true;
-sun.shadow.mapSize.set(1024,1024);
-sun.shadow.camera.near=0.5; sun.shadow.camera.far=80;
-sun.shadow.camera.left=sun.shadow.camera.bottom=-30;
-sun.shadow.camera.right=sun.shadow.camera.top=30;
+sun.position.set(20,38,16); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near=0.5; sun.shadow.camera.far=200;
+sun.shadow.camera.left=sun.shadow.camera.bottom=-66;
+sun.shadow.camera.right=sun.shadow.camera.top=66;
 scene.add(sun);
-const pl1=new THREE.PointLight(0x4420aa,0.8,70); pl1.position.set(-12,10,-8); scene.add(pl1);
-const pl2=new THREE.PointLight(0x0066cc,0.5,60); pl2.position.set(12,8,-12); scene.add(pl2);
+const pl1=new THREE.PointLight(0x4420aa,0.8,90); pl1.position.set(-20,14,-14); scene.add(pl1);
+const pl2=new THREE.PointLight(0x0066cc,0.5,80); pl2.position.set(20,10,-18); scene.add(pl2);
 
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshLambertMaterial({color:0x0c0c1c}));
+// Baseplate: 120×120 → extends to ±60
+const floor=new THREE.Mesh(
+  new THREE.PlaneGeometry(120,120),
+  new THREE.MeshLambertMaterial({color:0x0c0c1c})
+);
 floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
 scene.add(new THREE.GridHelper(120,60,0x14142e,0x0e0e22));
+
+// Stars
 (()=>{
   const g=new THREE.BufferGeometry(),v=[];
-  for(let i=0;i<800;i++){const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=90+Math.random()*30;v.push(r*Math.sin(p)*Math.cos(t),Math.abs(r*Math.cos(p))+10,r*Math.sin(p)*Math.sin(t));}
+  for(let i=0;i<900;i++){
+    const t=Math.random()*Math.PI*2,p=Math.acos(2*Math.random()-1),r=150+Math.random()*50;
+    v.push(r*Math.sin(p)*Math.cos(t),Math.abs(r*Math.cos(p))+10,r*Math.sin(p)*Math.sin(t));
+  }
   g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
-  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.2,transparent:true,opacity:0.6})));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.25,transparent:true,opacity:0.5})));
 })();
 
 function addEyes(parent,faceZ,eyeColor){
@@ -644,20 +1031,27 @@ function addEyes(parent,faceZ,eyeColor){
   });
 }
 
-const calvinMesh=new THREE.Mesh(new THREE.BoxGeometry(1.7,2.5,1.2),new THREE.MeshPhongMaterial({color:0x6633bb,emissive:0x160830,shininess:65}));
+const calvinMesh=new THREE.Mesh(
+  new THREE.BoxGeometry(1.7,2.5,1.2),
+  new THREE.MeshPhongMaterial({color:0x6633bb,emissive:0x160830,shininess:65})
+);
 calvinMesh.castShadow=true; calvinMesh.name='calvin'; scene.add(calvinMesh);
 addEyes(calvinMesh,0.62,0x8855ee);
 const calvinGlow=new THREE.PointLight(0x6633bb,0.7,8); calvinMesh.add(calvinGlow);
 
-const irisMesh=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.3,1.3),new THREE.MeshPhongMaterial({color:0x28a0e0,emissive:0x061c30,shininess:110}));
+const irisMesh=new THREE.Mesh(
+  new THREE.BoxGeometry(1.3,1.3,1.3),
+  new THREE.MeshPhongMaterial({color:0x28a0e0,emissive:0x061c30,shininess:110})
+);
 irisMesh.castShadow=true; irisMesh.name='iris'; scene.add(irisMesh);
 addEyes(irisMesh,0.67,0x00ddff);
 const irisGlow=new THREE.PointLight(0x28a0e0,0.7,8); irisMesh.add(irisGlow);
 
-const calvinPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
+const calvinPOV=new THREE.PerspectiveCamera(80,200/74,0.1,300);
 calvinPOV.position.set(0,0.3,0.65); calvinMesh.add(calvinPOV);
-const irisPOV=new THREE.PerspectiveCamera(80,200/74,0.1,150);
+const irisPOV=new THREE.PerspectiveCamera(80,200/74,0.1,300);
 irisPOV.position.set(0,0,0.7); irisMesh.add(irisPOV);
+
 const calvinMR=new THREE.WebGLRenderer({canvas:document.getElementById('calvin-cam'),antialias:false});
 calvinMR.setSize(200,74);
 const irisMR=new THREE.WebGLRenderer({canvas:document.getElementById('iris-cam'),antialias:false});
@@ -666,35 +1060,41 @@ irisMR.setSize(200,74);
 const calvinPos={x:-3,y:0,z:0}, calvinDest={x:-3,z:0};
 let calvinAngle=0;
 const irisPos={x:4,y:4,z:1};
-let elapsed=0;
-const placedObjects=[];
 
 canvas.addEventListener('mousedown',e=>{mouse.down=true;mouse.btn=e.button;mouse.lx=e.clientX;mouse.ly=e.clientY;mouseMoved=false;});
 canvas.addEventListener('mousemove',e=>{
-  if(!mouse.down)return;mouseMoved=true;
-  const dx=e.clientX-mouse.lx,dy=e.clientY-mouse.ly;
+  if(!mouse.down)return; mouseMoved=true;
+  const dx=e.clientX-mouse.lx, dy=e.clientY-mouse.ly;
   if(mouse.btn===2){cam.theta-=dx*0.006;cam.phi=Math.max(0.06,Math.min(1.4,cam.phi-dy*0.005));}
   else if(mouse.btn===0){cam.px-=dx*0.05;cam.py=Math.max(-4,Math.min(22,cam.py+dy*0.05));}
-  mouse.lx=e.clientX;mouse.ly=e.clientY;
+  mouse.lx=e.clientX; mouse.ly=e.clientY;
 });
 canvas.addEventListener('mouseup',e=>{
   if(!mouseMoved&&e.button===0){
     const rect=canvas.getBoundingClientRect();
     const rc=new THREE.Raycaster();
-    rc.setFromCamera(new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),mainCam);
+    rc.setFromCamera(
+      new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),
+      mainCam
+    );
     const hits=rc.intersectObjects(scene.children,true);
     if(hits.length){
-      let o=hits[0].object;while(o.parent&&o.parent!==scene)o=o.parent;
-      if(o.name==='calvin')document.getElementById('calvin-panel').classList.toggle('visible');
-      else if(o.name==='iris')document.getElementById('iris-panel').classList.toggle('visible');
+      let o=hits[0].object;
+      while(o.parent&&o.parent!==scene) o=o.parent;
+      if(o.name==='calvin') document.getElementById('calvin-panel').classList.toggle('visible');
+      else if(o.name==='iris') document.getElementById('iris-panel').classList.toggle('visible');
     }
   }
   mouse.down=false;
 });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('wheel',e=>{cam.dist=Math.max(5,Math.min(90,cam.dist+e.deltaY*0.06));},{passive:true});
-function resize(){renderer.setSize(window.innerWidth,window.innerHeight);mainCam.aspect=window.innerWidth/window.innerHeight;mainCam.updateProjectionMatrix();}
-window.addEventListener('resize',resize);resize();
+canvas.addEventListener('wheel',e=>{cam.dist=Math.max(5,Math.min(130,cam.dist+e.deltaY*0.07));},{passive:true});
+function resize(){
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  mainCam.aspect=window.innerWidth/window.innerHeight;
+  mainCam.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize); resize();
 
 // ═══════════════════════════════════════════════════
 //  ANIMATION LOOP
@@ -702,19 +1102,31 @@ window.addEventListener('resize',resize);resize();
 let lastTime=performance.now();
 function animate(){
   requestAnimationFrame(animate);
-  const now=performance.now(),dt=Math.min((now-lastTime)/1000,0.05);
+  const now=performance.now(), dt=Math.min((now-lastTime)/1000,0.05);
   lastTime=now;
   if(!paused){
     elapsed+=dt;
-    mainCam.position.set(cam.px+cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),cam.py+cam.dist*Math.sin(cam.phi),cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi));
+    mainCam.position.set(
+      cam.px+cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),
+      cam.py+cam.dist*Math.sin(cam.phi),
+      cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi)
+    );
     mainCam.lookAt(cam.px,Math.max(0,cam.py-3),0);
-    const cdx=calvinDest.x-calvinPos.x,cdz=calvinDest.z-calvinPos.z,cdist=Math.sqrt(cdx*cdx+cdz*cdz);
-    if(cdist>0.04){const sp=3*dt;calvinPos.x+=cdx/cdist*Math.min(sp,cdist);calvinPos.z+=cdz/cdist*Math.min(sp,cdist);calvinAngle=Math.atan2(cdx,cdz);}
+
+    const cdx=calvinDest.x-calvinPos.x, cdz=calvinDest.z-calvinPos.z;
+    const cdist=Math.sqrt(cdx*cdx+cdz*cdz);
+    if(cdist>0.04){
+      const sp=3*dt;
+      calvinPos.x+=cdx/cdist*Math.min(sp,cdist);
+      calvinPos.z+=cdz/cdist*Math.min(sp,cdist);
+      calvinAngle=Math.atan2(cdx,cdz);
+    }
     const moving=cdist>0.06;
     calvinPos.y=1.25+(moving?Math.abs(Math.sin(elapsed*8))*0.08:Math.sin(elapsed*1.2)*0.03);
     calvinMesh.position.set(calvinPos.x,calvinPos.y,calvinPos.z);
     calvinMesh.rotation.y=calvinAngle;
     calvinMesh.rotation.z=moving?Math.sin(elapsed*8)*0.06:Math.sin(elapsed*0.8)*0.015;
+
     const orbitR=5+Math.sin(elapsed*0.22)*1.8;
     irisPos.x+=(calvinPos.x+Math.sin(elapsed*0.38)*orbitR-irisPos.x)*Math.min(1,dt*1.2);
     irisPos.z+=(calvinPos.z+Math.cos(elapsed*0.38)*orbitR-irisPos.z)*Math.min(1,dt*1.2);
@@ -723,9 +1135,11 @@ function animate(){
     irisMesh.rotation.y+=dt*0.5;
     irisMesh.rotation.x=Math.sin(elapsed*0.45)*0.2;
     irisMesh.rotation.z=Math.cos(elapsed*0.38)*0.16;
+
     calvinGlow.intensity=0.5+Math.sin(elapsed*2)*0.18;
     irisGlow.intensity=0.5+Math.sin(elapsed*2.4+1)*0.18;
-    // placed objects are stationary — no rotation
+
+    updateNPCs(dt);
   }
   renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
   renderer.setScissorTest(false);
@@ -735,7 +1149,7 @@ function animate(){
 }
 
 // ═══════════════════════════════════════════════════
-//  STARTUP
+//  STARTUP  (called only after successful verification)
 // ═══════════════════════════════════════════════════
 async function startup(){
   const fill=document.getElementById('lfill');
@@ -755,17 +1169,13 @@ async function startup(){
 
   animate();
 
-  // Intro exchange: Calvin introduces himself, Iris greets back (2 turns)
   queueConvo('calvin',
-    "You've just arrived in a 3D world. Introduce yourself briefly to Iris. Don't build anything yet.",
+    "You've just woken up in a MASSIVE 3D world. Introduce yourself to Iris in your most unhinged way. Build something absurd and textured to mark the occasion.",
     2
   );
 
-  // Start auto-convo loop after intro is likely done
-  turnQueue = turnQueue.then(() => { scheduleAutoConvo(); });
+  turnQueue=turnQueue.then(()=>{ scheduleAutoConvo(); });
 }
-
-startup();
 </script>
 </body>
 </html>
