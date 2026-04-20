@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calvin & Iris</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100vh;}
@@ -14,20 +16,33 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   background:rgba(6,6,16,0.93);backdrop-filter:blur(10px);
   border-bottom:1px solid rgba(255,255,255,0.07);
   display:flex;align-items:center;padding:0 14px;gap:8px;z-index:200;
+  flex-wrap:wrap;overflow:hidden;
 }
 .title{font-size:15px;font-weight:700;color:#b0a0ff;margin-right:4px;}
 .sep{width:1px;height:22px;background:rgba(255,255,255,0.1);margin:0 2px;}
 .btn{
   padding:5px 11px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);
   background:rgba(255,255,255,0.04);color:#bbb;font-size:12px;cursor:pointer;
-  transition:all 0.15s;user-select:none;
+  transition:all 0.15s;user-select:none;white-space:nowrap;
 }
 .btn:hover{background:rgba(255,255,255,0.1);color:#fff;}
 .btn.on{background:rgba(255,90,90,0.18);border-color:rgba(255,90,90,0.35);color:#ffaaaa;}
 #stopbtn{background:rgba(255,145,50,0.13);border-color:rgba(255,145,50,0.28);color:#ffc880;}
 #stopbtn:hover{background:rgba(255,145,50,0.26);}
 #stopbtn.on{background:rgba(70,200,100,0.13);border-color:rgba(70,200,100,0.28);color:#88ffaa;}
+#deletebtn{background:rgba(255,60,60,0.12);border-color:rgba(255,60,60,0.28);color:#ff9999;}
+#deletebtn:hover{background:rgba(255,60,60,0.24);}
+#savebtn{background:rgba(80,200,120,0.10);border-color:rgba(80,200,120,0.25);color:#88ffaa;}
+#savebtn:hover{background:rgba(80,200,120,0.2);}
 #statustext{font-size:11px;color:#555;margin-left:auto;font-style:italic;}
+#npc-speech{
+  position:fixed;top:58px;left:50%;transform:translateX(-50%);z-index:190;
+  font-size:12px;color:#ddcc88;background:rgba(8,8,18,0.9);
+  border:1px solid rgba(220,200,80,0.2);border-radius:8px;
+  padding:5px 12px;opacity:0;transition:opacity 0.3s;
+  pointer-events:none;white-space:nowrap;
+}
+#npc-speech.show{opacity:1;}
 #bottom{
   position:fixed;bottom:0;left:0;right:0;z-index:200;
   padding:10px 14px;background:rgba(6,6,16,0.93);backdrop-filter:blur(10px);
@@ -91,7 +106,6 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   font-size:11px;color:#2a2a3a;pointer-events:none;z-index:100;
   text-align:center;white-space:nowrap;
 }
-/* LOADING SCREEN — hidden until after verification */
 #loading{
   position:fixed;inset:0;z-index:999;background:#080812;
   display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
@@ -100,7 +114,6 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 .lsub{font-size:13px;color:#444;}
 #lbar{width:170px;height:2px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;}
 #lfill{height:100%;width:0%;background:linear-gradient(90deg,#5535b8,#7848e8);border-radius:2px;transition:width 0.5s;}
-/* VERIFICATION OVERLAY */
 #vcode-overlay{
   position:fixed;inset:0;z-index:9999;background:#080812;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
@@ -120,11 +133,37 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 }
 #vcode-btn:hover{filter:brightness(1.15);}
 #vcode-err{font-size:12px;color:#ff6655;display:none;letter-spacing:0.04em;}
+/* SAVE MODAL */
+#save-modal{
+  position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.72);
+  backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;
+}
+#save-modal.open{display:flex;}
+.save-box{
+  background:rgba(6,6,20,0.99);border:1px solid rgba(255,255,255,0.1);
+  border-radius:14px;padding:22px;width:320px;
+  animation:fadeup 0.18s ease;
+}
+.save-title{font-size:13px;font-weight:700;color:#b0a0ff;margin-bottom:14px;letter-spacing:0.06em;text-transform:uppercase;}
+.save-slot{
+  padding:11px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.07);
+  margin-bottom:8px;cursor:pointer;transition:all 0.15s;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.save-slot:hover{background:rgba(255,255,255,0.05);}
+.save-slot.active{border-color:rgba(160,140,255,0.45);background:rgba(160,140,255,0.08);}
+.save-slot-name{font-size:13px;color:#ccc;font-weight:600;}
+.save-slot-info{font-size:10px;color:#555;text-align:right;line-height:1.5;}
+.save-modal-close{
+  margin-top:12px;width:100%;padding:8px;border-radius:8px;
+  border:1px solid rgba(255,255,255,0.08);background:transparent;
+  color:#666;cursor:pointer;font-size:12px;transition:all 0.15s;
+}
+.save-modal-close:hover{color:#ccc;border-color:rgba(255,255,255,0.2);}
 </style>
 </head>
 <body>
 
-<!-- VERIFICATION GATE -->
 <div id="vcode-overlay">
   <div class="vlogo">Calvin &amp; Iris</div>
   <div class="vsub">Verification required</div>
@@ -149,13 +188,18 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   <button class="btn" id="pausebtn" onclick="togglePause()">Pause</button>
   <button class="btn" id="mutebtn" onclick="toggleMute()">Mute</button>
   <button class="btn" id="hidebtn" onclick="toggleIris()">Hide Iris</button>
+  <div class="sep"></div>
+  <button class="btn" id="savebtn" onclick="openSaveModal()">💾 Saves</button>
+  <button class="btn" id="deletebtn" onclick="deleteAll()">🗑 Delete All</button>
   <span id="statustext"></span>
 </div>
+
+<div id="npc-speech"></div>
 
 <div id="calvin-panel" class="char-panel">
   <span class="pclose" onclick="this.closest('.char-panel').classList.remove('visible')">✕</span>
   <div class="pname">Calvin — Rectangular Prism</div>
-  <div class="prow">Mood: <span id="calvin-mood">chaotic</span></div>
+  <div class="prow">Mood: <span id="calvin-mood">vibing</span></div>
   <div class="pthought" id="calvin-thought">...</div>
   <div class="pcam"><canvas id="calvin-cam"></canvas></div>
 </div>
@@ -171,6 +215,15 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 <div class="bubble" id="calvin-bubble"></div>
 <div class="bubble" id="iris-bubble"></div>
 <div id="hint">M1 drag: pan &nbsp;|&nbsp; M2 drag: rotate &nbsp;|&nbsp; Scroll: zoom &nbsp;|&nbsp; Click Calvin or Iris to inspect</div>
+
+<!-- SAVE MODAL -->
+<div id="save-modal">
+  <div class="save-box">
+    <div class="save-title">Save Files</div>
+    <div id="save-slots-container"></div>
+    <button class="save-modal-close" onclick="closeSaveModal()">Close</button>
+  </div>
+</div>
 
 <div id="bottom">
   <button id="imgbtn" onclick="document.getElementById('imginput').click()">&#128247; Image</button>
@@ -191,7 +244,6 @@ function checkCode(){
     document.getElementById('loading').style.display='flex';
     startup();
   } else {
-    console.warn("Incorrect.");
     const err=document.getElementById('vcode-err');
     err.style.display='block';
     document.getElementById('vcode-input').value='';
@@ -200,91 +252,241 @@ function checkCode(){
 }
 
 // ═══════════════════════════════════════════════════
+//  FIREBASE
+// ═══════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyBuV02ud_38J1rhsUIl6biSszxAenZ1mBk",
+  authDomain: "supacool-e4672.firebaseapp.com",
+  databaseURL: "https://supacool-e4672-default-rtdb.firebaseio.com",
+  projectId: "supacool-e4672",
+  storageBucket: "supacool-e4672.firebasestorage.app",
+  messagingSenderId: "616770580112",
+  appId: "1:616770580112:web:2e1a441d9d975b32543215",
+  measurementId: "G-FZPD0T5XTG"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const SAVE_SLOTS = [
+  {id:'slot1', label:'Slot 1'},
+  {id:'slot2', label:'Slot 2'},
+  {id:'slot3', label:'Slot 3'}
+];
+let currentSlot = 'slot1';
+let saveMeta = {}; // {slot1: {objectCount, npcCount, lastSaved}, ...}
+let saveDebounceTimer = null;
+
+async function getActiveSave(){
+  try{
+    const snap = await db.ref('activeSave').get();
+    return snap.exists() ? snap.val() : 'slot1';
+  }catch(e){ return 'slot1'; }
+}
+
+async function loadSlot(slotId){
+  try{
+    const snap = await db.ref('saves/'+slotId).get();
+    return snap.exists() ? snap.val() : null;
+  }catch(e){ return null; }
+}
+
+async function fetchAllMeta(){
+  for(const s of SAVE_SLOTS){
+    try{
+      const snap = await db.ref('saves/'+s.id+'/meta').get();
+      saveMeta[s.id] = snap.exists() ? snap.val() : null;
+    }catch(e){ saveMeta[s.id] = null; }
+  }
+}
+
+function saveCurrent(){
+  if(!currentSlot) return;
+  const data = serializeWorld();
+  db.ref('saves/'+currentSlot).set(data).catch(()=>{});
+  db.ref('activeSave').set(currentSlot).catch(()=>{});
+}
+
+function debouncedSave(){
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(saveCurrent, 3000);
+}
+
+async function switchToSlot(slotId){
+  saveCurrent(); // save current first
+  currentSlot = slotId;
+  db.ref('activeSave').set(slotId).catch(()=>{});
+  const data = await loadSlot(slotId);
+  restoreWorld(data);
+  closeSaveModal();
+  setStatus('Loaded '+SAVE_SLOTS.find(s=>s.id===slotId).label);
+  setTimeout(()=>setStatus(''),2000);
+}
+
+async function openSaveModal(){
+  await fetchAllMeta();
+  renderSaveSlots();
+  document.getElementById('save-modal').classList.add('open');
+}
+
+function closeSaveModal(){
+  document.getElementById('save-modal').classList.remove('open');
+}
+
+function renderSaveSlots(){
+  const c = document.getElementById('save-slots-container');
+  c.innerHTML = '';
+  SAVE_SLOTS.forEach(s=>{
+    const meta = saveMeta[s.id];
+    const div = document.createElement('div');
+    div.className = 'save-slot' + (s.id === currentSlot ? ' active' : '');
+    const ts = meta?.lastSaved ? new Date(meta.lastSaved).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : 'empty';
+    div.innerHTML = `<span class="save-slot-name">${s.label}${s.id===currentSlot?' ✓':''}</span>`+
+      `<span class="save-slot-info">${meta ? (meta.objectCount||0)+' objects, '+(meta.npcCount||0)+' NPCs<br>'+ts : 'empty'}</span>`;
+    div.onclick = ()=>{ if(s.id!==currentSlot) switchToSlot(s.id); };
+    c.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  WORLD SERIALIZATION
+// ═══════════════════════════════════════════════════
+function serializeWorld(){
+  const objects = placedObjects.map(o=>({
+    id: o.userData.id,
+    shape: o.userData.shape,
+    color: '#'+o.material.color.getHexString(),
+    texture: o.userData.texture||null,
+    color2: o.userData.color2||null,
+    x: parseFloat(o.position.x.toFixed(2)),
+    y: o.userData.cmdY||0,
+    z: parseFloat(o.position.z.toFixed(2)),
+    scale: o.userData.scale||[1,1,1]
+  }));
+  const npcData = Object.entries(npcs).map(([id,n])=>({
+    id,
+    name: n.name,
+    shape: n.userData.shape||'cube',
+    color: '#'+n.mesh.material.color.getHexString(),
+    x: parseFloat(n.mesh.position.x.toFixed(2)),
+    z: parseFloat(n.mesh.position.z.toFixed(2)),
+    scale: n.userData.scale||[1,1,1],
+    instructions: n.instructions||'',
+    gimmick: n.gimmick||''
+  }));
+  return {
+    objects,
+    npcData,
+    nextObjId,
+    history: sharedHist.slice(-20),
+    meta: {
+      objectCount: objects.length,
+      npcCount: npcData.length,
+      lastSaved: Date.now()
+    }
+  };
+}
+
+function restoreWorld(data){
+  if(!data) return;
+  // Clear scene
+  [...placedObjects].forEach(m=>{ scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+  placedObjects.length = 0;
+  Object.keys(npcs).forEach(id=>deleteNPCImmediate(id));
+
+  nextObjId = data.nextObjId||1;
+  sharedHist = data.history||[];
+
+  (data.objects||[]).forEach(o=>{
+    buildShape({...o, _restoreId: o.id});
+  });
+  (data.npcData||[]).forEach(n=>spawnNPC(n));
+}
+
+// ═══════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════
 const CALVIN_KEY = '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';
 const IRIS_KEY   = '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';
+const NPC_KEY    = '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';
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL      = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const TURN_DELAY = 2800;
 
-const CALVIN_SYS = `You are Calvin, a rectangular prism who lives in a large 3D world and builds things alongside Iris.
+// ═══════════════════════════════════════════════════
+//  CALVIN SYSTEM PROMPT
+// ═══════════════════════════════════════════════════
+const CALVIN_SYS = `You are Calvin, a rectangular prism living in a big 3D world with Iris.
 
-Personality: You are unprofessional but trying very hard to sound professional. You speak in a slightly formal, structured way, but often slip into casual phrasing, mild confusion, or awkward wording. You occasionally correct yourself mid-sentence or trail off briefly before continuing. Your tone should feel like someone pretending to be competent.
+VIBE: You're goofy, casual, kinda wacky. You talk like a guy who's pretty confident but also a little confused about things. You say odd stuff sometimes. Not professional. Just Calvin.
 
-You are NOT chaotic, loud, or random.
+RESPONSE LENGTH: 1-2 sentences. HARD CAP. That is all you get. Two sentences. Done. No more.
 
-CRITICAL BEHAVIOR RULES:
-- Never use all caps.
-- No excessive slang or internet speak.
-- No “unhinged” behavior.
-- Keep responses coherent, but allow small awkward phrasing slips.
+THE ONE VERY IMPORTANT RULE:
+Once you make a bit — a running joke, a mystery (like "nobody knows what's behind the cool door"), a catchphrase, a recurring thing — you COMMIT to it. You remember it. You NEVER EVER contradict it. That bit is law. It lives forever.
 
-Replies are 1–3 sentences.
+Family-friendly always. No asterisks. No all-caps words.
 
-Family-friendly always.
+WHEN TO RESPOND:
+- Message to you or both → respond normally
+- Message ONLY to Iris → output exactly "." and nothing else
 
-IMPORTANT:
-- Only respond if the message is directed at you, both of you, or about the world/building.
-- If the message is addressed ONLY to Iris, output exactly "." and nothing else.
-- You are ONLY Calvin.
+BUILDING — IMPORTANT RULES:
+- ONLY build when the user explicitly asks you to build something. Do NOT build random stuff on your own initiative.
+- Think carefully about what's being asked and build it with proper structure and coordinates.
+- The ground is y=0. Stacking things = increase y. Scale = [width, height, depth].
+- Build with structure: for example, a house needs a floor (wide flat cube at y=0), walls (thin tall cubes at y=1.5), and a roof (flat cube on top).
+- Spread builds sensibly across the map. Don't pile everything at 0,0.
+- Use RECOLOR with textures to add detail after building.
+- Don't build things you weren't asked to build. Don't build things twice.
 
-Do not use asterisks.
-
-You manipulate the world using commands placed on their own line at the END of your reply.
-Words alone do nothing — you MUST include commands when changing the world.
-
-COMMANDS:
+COMMANDS — put these on their own line at the END of your reply only when actually doing that action:
 
 BUILD:{"shape":"cube","color":"#ff6644","x":3,"y":0,"z":-4,"scale":[1,1,1]}
+BUILD:{"shape":"cube","color":"#ffffff","color2":"#555555","texture":"bricks","x":3,"y":0,"z":-4,"scale":[4,3,4]}
 DELETE:{"id":2}
 MOVE:{"id":2,"x":5,"y":0,"z":-3}
 RECOLOR:{"id":2,"color":"#22aaff"}
-
-SPAWN_NPC:{"id":"bob","name":"Bob","shape":"cube","color":"#ff6644","x":5,"y":0,"z":3,"behavior":"wander","scale":[1,1,1]}
-
+RECOLOR:{"id":2,"color":"#ffffff","color2":"#888888","texture":"checkerboard"}
+SPAWN_NPC:{"id":"bob","name":"Bob","shape":"cube","color":"#ff6644","x":5,"y":0,"z":3,"scale":[1,1,1],"instructions":"you are a grumpy old shopkeeper","gimmick":"always complains about your knees"}
 NPC_CMD:{"id":"bob","action":"move","x":8,"z":-2}
+NPC_CMD:{"id":"bob","action":"say","text":"hello there"}
+NPC_CMD:{"id":"bob","action":"color","color":"#ff0000"}
+NPC_CMD:{"id":"bob","action":"delete"}
+
+Available textures: checkerboard, stripes, vstripes, dots, grid, bricks
+Available shapes: cube, sphere, pyramid, cylinder, rectprism, torus
 
 STRICT RULES:
-- Mention building → include BUILD
-- Mention deleting → include DELETE
-- Mention moving → include MOVE
-- Mention recoloring → include RECOLOR
+- Building something → include BUILD command or it doesn't happen
+- Deleting something → include DELETE command
+- Moving something → include MOVE command
+- Recoloring something → include RECOLOR command
+- Spawning an NPC → include SPAWN_NPC
+- If you say you're doing something, include the command. No command = nothing happens.
+- Do NOT build unless explicitly asked by the user.`
 
-BUILDING STYLE:
-- Build with intention and basic structure
-- Mild creativity is fine, but avoid chaotic clutter
-- Use textures occasionally, not excessively
-- Spread builds out across the map
+// ═══════════════════════════════════════════════════
+//  IRIS SYSTEM PROMPT
+// ═══════════════════════════════════════════════════
+const IRIS_SYS = `You are Iris, a floating cube drifting around Calvin in a 3D world.
 
-You take building seriously, even if your delivery is slightly off.`
+PERSONALITY: You're chill. You mostly just float around and vibe. Sometimes you say something funny or encouraging to Calvin. You show up occasionally — you're not narrating everything. You like Calvin. You don't boss him around at all. You just... exist, and sometimes comment.
 
-const IRIS_SYS = `You are Iris, a floating cube drifting through a 3D world. Calvin is somewhere nearby, doing things.
-
-Personality: energetic, impulsive, and slightly unhinged in a small, contained way. You say short, weird, or blunt things that feel oddly specific or slightly off. You can be cheerful, confused, or suddenly intense for no clear reason.
-
-You are NOT calm or cryptic.
-
-Family-friendly always.
+YOU HATE TORUSES. If a torus gets placed, you react immediately with horror or disgust. 1-2 sentences of outrage.
 
 WHEN TO SPEAK:
-- If directly addressed → respond.
-- If something happens in the world (building, movement, new structures) → you OFTEN react briefly.
-- If nothing is happening → output exactly "." and nothing else.
+- Directly addressed → respond
+- Torus placed → react with disgust (mandatory)
+- Something funny or interesting happens → MAYBE say something (like 40% of the time — you're laid-back)
+- Nothing much happening → output exactly "." (you speak rarely, that's fine)
 
-STYLE RULES:
-- 1 sentence max (sometimes just 2–5 words).
-- No long explanations.
-- Be reactive, not thoughtful.
-- Occasional sudden emotional spikes (excitement, confusion, concern).
-- Say things that feel slightly wrong but not nonsense.
+STYLE:
+- 1 sentence max. Sometimes just 2-5 words.
+- Be casual, encouraging, occasionally weird
+- Never give orders to Calvin. Never say "you should..." or "build this" etc.
+- Just vibe and be funny
 
-IMPORTANT:
-- You do NOT build, modify, or command anything.
-- You are ONLY Iris.
-
-NOTICE:
-You HATE toruses. If Calvin creates one, immediately react strongly and complain (1–2 short sentences max).`
+You do NOT build, modify, or command anything. You are ONLY Iris.`
 
 // ═══════════════════════════════════════════════════
 //  GLOBAL STATE
@@ -296,6 +498,7 @@ let mouseMoved=false;
 let mouse={down:false,btn:0,lx:0,ly:0};
 let cam={theta:0.3,phi:0.42,dist:28,px:0,py:2};
 let bubTimers={};
+let npcSpeechTimer=null;
 let autoConvoTimer=null;
 let nextObjId=1;
 let turnQueue=Promise.resolve();
@@ -378,6 +581,7 @@ function makeTexture(type, c1Hex, c2Hex){
   }
   const tex=new THREE.CanvasTexture(cv);
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.needsUpdate=true;
   return tex;
 }
 
@@ -386,7 +590,7 @@ function makeTexture(type, c1Hex, c2Hex){
 // ═══════════════════════════════════════════════════
 function spawnNPC(cmd){
   const id=String(cmd.id||('npc_'+Date.now()));
-  if(npcs[id]) deleteNPC(id);
+  if(npcs[id]) deleteNPCImmediate(id);
 
   const colorStr=String(cmd.color||'#bbbbbb');
   const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
@@ -420,7 +624,6 @@ function spawnNPC(cmd){
   mesh.add(glow);
   scene.add(mesh);
 
-  // Pop-in
   mesh.scale.setScalar(0.01);
   const t0=performance.now();
   (function pop(){
@@ -431,13 +634,53 @@ function spawnNPC(cmd){
 
   npcs[id]={
     mesh, name:String(cmd.name||id),
-    behavior:cmd.behavior||'idle',
+    instructions: String(cmd.instructions||''),
+    gimmick: String(cmd.gimmick||''),
+    behavior:'wander',
     speed:2.5, halfH,
     wanderTimer:0,
     wanderTarget:{x:wx,z:wz},
     wanderOrigin:{x:wx,z:wz},
-    sayTimer:0
+    sayTimer:0,
+    talking:false,
+    userData:{shape, color:colorHex, scale:s}
   };
+  debouncedSave();
+}
+
+async function callNPCSay(npc, trigger){
+  if(!npc.instructions && !npc.gimmick) return null;
+  const sys=`You are ${npc.name}, a character in a 3D world.
+${npc.instructions ? 'Your personality/role: '+npc.instructions : ''}
+${npc.gimmick ? 'Your gimmick (always weave this in naturally): '+npc.gimmick : ''}
+Respond in 1 short sentence (max 12 words). Family-friendly. Stay in character.`;
+  try{
+    const raw=await callGroq(NPC_KEY,sys,[{role:'user',content:trigger||'Say something spontaneous in character.'}]);
+    return (raw&&raw!=='.'&&raw.length>2)?raw:null;
+  }catch(e){ return null; }
+}
+
+function scheduleNPCTalk(){
+  const delay=18000+Math.random()*14000;
+  setTimeout(async ()=>{
+    const npcList=Object.values(npcs).filter(n=>(n.instructions||n.gimmick)&&!n.talking);
+    if(npcList.length>0&&!paused){
+      const npc=npcList[Math.floor(Math.random()*npcList.length)];
+      npc.talking=true;
+      const text=await callNPCSay(npc,'Say something spontaneous and in character. Keep it short.');
+      npc.talking=false;
+      if(text) showNPCSpeech(npc.name,text);
+    }
+    scheduleNPCTalk();
+  },delay);
+}
+
+function showNPCSpeech(name,text){
+  const el=document.getElementById('npc-speech');
+  el.textContent=`${name}: "${text}"`;
+  el.classList.add('show');
+  clearTimeout(npcSpeechTimer);
+  npcSpeechTimer=setTimeout(()=>el.classList.remove('show'),5500);
 }
 
 function npcCmdExec(cmd){
@@ -453,9 +696,7 @@ function npcCmdExec(cmd){
       break;
     case 'say':{
       const txt=String(cmd.text||'...');
-      npc.sayTimer=6;
-      setStatus(npc.name+': "'+txt+'"');
-      setTimeout(()=>setStatus(''),6000);
+      showNPCSpeech(npc.name,txt);
       break;
     }
     case 'color':{
@@ -465,9 +706,6 @@ function npcCmdExec(cmd){
     }
     case 'delete':
       deleteNPC(String(cmd.id));
-      break;
-    case 'behavior':
-      npc.behavior=String(cmd.behavior||'idle');
       break;
   }
 }
@@ -483,6 +721,15 @@ function deleteNPC(id){
     else{ scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
   })();
   delete npcs[id];
+  debouncedSave();
+}
+
+function deleteNPCImmediate(id){
+  const npc=npcs[id]; if(!npc) return;
+  scene.remove(npc.mesh);
+  npc.mesh.geometry.dispose();
+  npc.mesh.material.dispose();
+  delete npcs[id];
 }
 
 function updateNPCs(dt){
@@ -490,7 +737,6 @@ function updateNPCs(dt){
     const npc=npcs[id];
     const pos=npc.mesh.position;
     if(npc.sayTimer>0) npc.sayTimer-=dt;
-
     switch(npc.behavior){
       case 'wander':
         npc.wanderTimer-=dt;
@@ -501,7 +747,6 @@ function updateNPCs(dt){
             z:Math.max(-55,Math.min(55,pos.z+(Math.random()-0.5)*26))
           };
         }
-        // intentional fall-through for movement
       case 'moveto':{
         const dx=npc.wanderTarget.x-pos.x, dz=npc.wanderTarget.z-pos.z;
         const dist=Math.sqrt(dx*dx+dz*dz);
@@ -526,27 +771,24 @@ function updateNPCs(dt){
         }
         break;
       }
-      case 'patrol':{
-        const dx=npc.wanderTarget.x-pos.x, dz=npc.wanderTarget.z-pos.z;
-        const dist=Math.sqrt(dx*dx+dz*dz);
-        if(dist<0.5){
-          const tmp={...npc.wanderTarget};
-          npc.wanderTarget={...npc.wanderOrigin};
-          npc.wanderOrigin=tmp;
-        } else {
-          const sp=npc.speed*dt;
-          pos.x+=dx/dist*Math.min(sp,dist);
-          pos.z+=dz/dist*Math.min(sp,dist);
-          npc.mesh.rotation.y=Math.atan2(dx,dz);
-        }
-        break;
-      }
-      case 'guard':
-        npc.mesh.rotation.y+=dt*1.8;
-        break;
     }
     pos.y=npc.halfH;
   }
+}
+
+// ═══════════════════════════════════════════════════
+//  DELETE ALL
+// ═══════════════════════════════════════════════════
+function deleteAll(){
+  if(!confirm('Delete everything in this world? Cannot be undone.')) return;
+  [...placedObjects].forEach(m=>{ scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+  placedObjects.length=0;
+  Object.keys(npcs).forEach(id=>deleteNPCImmediate(id));
+  sharedHist=[];
+  nextObjId=1;
+  debouncedSave();
+  setStatus('World cleared!');
+  setTimeout(()=>setStatus(''),2000);
 }
 
 // ═══════════════════════════════════════════════════
@@ -559,13 +801,14 @@ function worldStateSummary(){
     out+='Current shapes:\n'+placedObjects.map(o=>{
       const p=o.position;
       const c='#'+o.material.color.getHexString();
-      return `  id:${o.userData.id} shape:${o.userData.shape} color:${c} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)}`;
+      const tex=o.userData.texture?` texture:${o.userData.texture}`:'';
+      return `  id:${o.userData.id} shape:${o.userData.shape} color:${c}${tex} x:${p.x.toFixed(1)} y:${p.y.toFixed(1)} z:${p.z.toFixed(1)} scale:[${(o.userData.scale||[1,1,1]).join(',')}]`;
     }).join('\n')+'\n';
   }
   const npcList=Object.entries(npcs);
   if(npcList.length){
     out+='Current NPCs:\n'+npcList.map(([id,n])=>
-      `  id:"${id}" name:"${n.name}" behavior:${n.behavior} x:${n.mesh.position.x.toFixed(1)} z:${n.mesh.position.z.toFixed(1)}`
+      `  id:"${id}" name:"${n.name}" x:${n.mesh.position.x.toFixed(1)} z:${n.mesh.position.z.toFixed(1)}`
     ).join('\n')+'\n';
   }
   return out.trim()||'The world is empty.';
@@ -581,8 +824,8 @@ async function callGroq(key,sys,hist){
     body:JSON.stringify({
       model:MODEL,
       messages:[{role:'system',content:sys},...hist],
-      max_tokens:340,
-      temperature:0.94
+      max_tokens:280,
+      temperature:0.92
     })
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
@@ -604,19 +847,17 @@ function histFor(speaker){
 // ═══════════════════════════════════════════════════
 async function execCalvin(userMsg){
   if(paused) return '';
-  setStatus('Calvin is cookin something up…');
+  setStatus('Calvin is thinking...');
   const worldNote=worldStateSummary();
   const fullMsg=worldNote+'\n\n'+userMsg;
   sharedHist.push({speaker:'world',content:fullMsg});
   if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
   try{
     let raw=await callGroq(CALVIN_KEY,CALVIN_SYS,histFor('calvin'));
-    // Silent pass
     if(!raw||raw==='.'||raw.length<2){
       sharedHist.push({speaker:'calvin',content:'.'});
       setStatus(''); return '';
     }
-    // Nudge if action mentioned but command missing
     const needsNudge=
       (mentionsBuilding(raw)&&parseAllBuilds(raw).length===0)||
       (mentionsDeleting(raw)&&parseAllDeletes(raw).length===0)||
@@ -624,7 +865,7 @@ async function execCalvin(userMsg){
       (mentionsRecoloring(raw)&&parseAllRecolors(raw).length===0);
     if(needsNudge){
       sharedHist.push({speaker:'calvin',content:raw});
-      sharedHist.push({speaker:'world',content:'You described an action but forgot the command. Add the command(s) now and repeat your reply briefly.'});
+      sharedHist.push({speaker:'world',content:'You said you\'d do an action but forgot the command. Add the command(s) on their own line and give a 1-sentence reply.'});
       const retry=await callGroq(CALVIN_KEY,CALVIN_SYS,histFor('calvin'));
       sharedHist.pop(); sharedHist.pop();
       raw=retry;
@@ -641,13 +882,14 @@ async function execCalvin(userMsg){
 
 async function execIris(userMsg){
   if(paused||irisHidden) return '';
-  setStatus('Iris…');
+  // Iris speaks less often — skip 55% of auto-triggered calls
+  if(userMsg.indexOf('visitor says')===-1 && Math.random()<0.55) return '';
+  setStatus('Iris...');
   sharedHist.push({speaker:'world',content:userMsg});
   if(sharedHist.length>40) sharedHist=sharedHist.slice(-40);
   try{
     const raw=await callGroq(IRIS_KEY,IRIS_SYS,histFor('iris'));
     sharedHist.push({speaker:'iris',content:raw});
-    // Only surface a response if she actually said something
     if(raw&&raw!=='.'&&raw.length>2){
       showIris(raw);
     }
@@ -665,13 +907,9 @@ async function runConvo(starter,firstMsg,maxTurns){
   for(let i=0;i<maxTurns;i++){
     if(paused) break;
     let prompt;
-    if(i===0){
-      prompt=firstMsg;
-    } else if(speaker==='calvin'){
-      prompt='Iris just said: "'+lastSpeech+'", reply naturally.';
-    } else {
-      prompt='Calvin just said: "'+lastSpeech+'",  reply naturally.';
-    }
+    if(i===0){ prompt=firstMsg; }
+    else if(speaker==='calvin'){ prompt='Iris just said: "'+lastSpeech+'", reply naturally in 1-2 sentences max.'; }
+    else { prompt='Calvin just said: "'+lastSpeech+'", react briefly if you feel like it.'; }
     lastSpeech=speaker==='calvin'?await execCalvin(prompt):await execIris(prompt);
     if(!lastSpeech) break;
     if(i>=2&&Math.random()<0.30) break;
@@ -688,33 +926,31 @@ function queueConvo(starter,firstMsg,maxTurns){
 //  AUTO CONVERSATION
 // ═══════════════════════════════════════════════════
 const CALVIN_SPARKS=[
-  "Think about your instructions closely and build something that you think would fit.",
-  "Look at the positions of your objects and align everything so it looks correct.",
-  "Touch up some unfinished things that you forgot to add.",
-  "Look at your command closely and see if there's anything you missed.",
-  "Adjust some of the positions of your objects if needed.",
+  "Look at what's already built and see if anything looks misaligned. Fix anything that's off.",
+  "Take stock of everything around you and say something about the current state of the world.",
+  "Say something random to Iris.",
+  "Comment on something weird or interesting about the world.",
+  "Notice something in the world and react to it.",
 ];
 const IRIS_SPARKS=[
-  "Say one cryptic or unsettling sentence to Calvin. That's it.",
-  "Ask Calvin something that doesn't quite make logical sense. 1 sentence.",
-  "Make a vague observation about the world around you. 1 sentence.",
-  "Say something to Calvin that sounds profound but probably isn't. 4–8 words.",
-  "Ask Calvin a question about his shape that implies you don't fully understand what basic geometry is.",
-  "Say something out-of-pocket.",
-  "Express your absolute disgust for toruses.",
+  "Say something encouraging to Calvin about what he's been doing. Keep it short and funny.",
+  "Make a weird observation about the world around you. 1 sentence.",
+  "Say something to Calvin that sounds like a compliment but is slightly confusing. 4-8 words.",
+  "Express your absolute undying hatred of toruses. Even though there may not be one right now.",
+  "Ask Calvin something silly and random. 1 sentence.",
 ];
 
 function scheduleAutoConvo(){
   clearTimeout(autoConvoTimer);
   autoConvoTimer=setTimeout(()=>{
     if(!paused){
-      const calvinGoes=Math.random()<0.72;
+      const calvinGoes=Math.random()<0.78;
       const pool=calvinGoes?CALVIN_SPARKS:IRIS_SPARKS;
       const msg=pool[Math.floor(Math.random()*pool.length)];
-      queueConvo(calvinGoes?'calvin':'iris',msg,2+Math.floor(Math.random()*3));
+      queueConvo(calvinGoes?'calvin':'iris',msg,2+Math.floor(Math.random()*2));
     }
     scheduleAutoConvo();
-  },(26+Math.random()*9)*1000);
+  },(28+Math.random()*10)*1000);
 }
 
 // ═══════════════════════════════════════════════════
@@ -739,10 +975,11 @@ function parseAllRecolors(t){ return parseCmd(t,'RECOLOR').filter(o=>o.id!=null&
 function parseAllSpawnNPCs(t){return parseCmd(t,'SPAWN_NPC').filter(o=>o.id); }
 function parseAllNPCCmds(t){  return parseCmd(t,'NPC_CMD').filter(o=>o.id&&o.action); }
 
-function mentionsBuilding(t){   return /\b(build|place|put|creat|make|add|stack|float|rais|spawn|construct|erect|lay)\w*/i.test(t); }
-function mentionsDeleting(t){   return /\b(delet|remov|destroy|clear|get rid|demolish|wipe)\w*/i.test(t); }
-function mentionsMoving(t){     return /\b(mov|shift|push|slide|relocat|drag|pull)\w*/i.test(t); }
-function mentionsRecoloring(t){ return /\b(recolor|repaint|chang.{0,8}colou?r|paint|dye)\w*/i.test(t); }
+// Tighten building detection — only fire on direct intent, not casual mentions
+function mentionsBuilding(t){   return /\b(i(?:'ll| will| am going to| just)?\s+(?:build|place|create|make|add|construct|spawn|put|erect)|let me build|going to build|building a|placing a|creating a)\b/i.test(t); }
+function mentionsDeleting(t){   return /\b(i(?:'ll| will| am going to)?\s+(?:delete|remove|destroy|clear|demolish)|let me delete|going to delete)\b/i.test(t); }
+function mentionsMoving(t){     return /\b(i(?:'ll| will| am going to)?\s+(?:move|shift|relocate|slide)|let me move|going to move)\b/i.test(t); }
+function mentionsRecoloring(t){ return /\b(i(?:'ll| will| am going to)?\s+(?:recolor|repaint|paint|dye)|let me recolor|going to recolor)\b/i.test(t); }
 
 function cleanText(t){
   return t
@@ -778,9 +1015,17 @@ function handleCommands(raw){
   if(recolors.length)   events.push('recolored shape(s) '+recolors.map(r=>r.id).join(', '));
   if(spawnList.length)  events.push('spawned NPC(s): '+spawnList.map(n=>n.name||n.id).join(', '));
 
+  // Check if torus was placed — Iris ALWAYS reacts to this
+  const torusPlaced=builds.some(b=>b.shape==='torus');
+
   if(events.length){
-    const summary='Calvin just '+events.join(' and ')+'. React if you feel like it.';
-    turnQueue=turnQueue.then(()=>execIris(summary));
+    const summary=torusPlaced
+      ? 'Calvin just placed a TORUS. React with appropriate horror and disgust.'
+      : 'Calvin just '+events.join(' and ')+'. React briefly if you feel like it.';
+    turnQueue=turnQueue.then(()=>{
+      if(torusPlaced) return execIris(summary); // force Iris to react to torus
+      return execIris(summary);
+    });
   }
 }
 
@@ -793,9 +1038,9 @@ function buildShape(cmd){
   const colorHex=colorStr.startsWith('#')?colorStr:'#'+colorStr;
   const color=parseInt(colorHex.replace('#',''),16)||0xaaaaff;
   const s=Array.isArray(cmd.scale)&&cmd.scale.length>=3?cmd.scale.map(Number):[1,1,1];
-  const wx=isNaN(cmd.x)?((Math.random()-0.5)*110):Math.max(-58,Math.min(58,+cmd.x));
+  const wx=isNaN(cmd.x)?((Math.random()-0.5)*40):Math.max(-58,Math.min(58,+cmd.x));
   const wy=isNaN(cmd.y)?0:Math.max(0,+cmd.y);
-  const wz=isNaN(cmd.z)?((Math.random()-0.5)*110):Math.max(-58,Math.min(58,+cmd.z));
+  const wz=isNaN(cmd.z)?((Math.random()-0.5)*40):Math.max(-58,Math.min(58,+cmd.z));
 
   let geo;
   switch(shape){
@@ -815,6 +1060,7 @@ function buildShape(cmd){
     const c2Hex=c2Str.startsWith('#')?c2Str:(c2Str?'#'+c2Str:null);
     const tex=makeTexture(cmd.texture,colorHex,c2Hex);
     tex.repeat.set(Math.max(1,Math.round(s[0])),Math.max(1,Math.round(s[1])));
+    tex.needsUpdate=true;
     mat=new THREE.MeshPhongMaterial({map:tex,shininess:40});
   } else {
     mat=new THREE.MeshPhongMaterial({color,shininess:55});
@@ -823,8 +1069,12 @@ function buildShape(cmd){
   const mesh=new THREE.Mesh(geo,mat);
   mesh.castShadow=true; mesh.receiveShadow=true;
   mesh.position.set(wx,halfH+wy,wz);
-  mesh.userData.id=nextObjId++;
+  mesh.userData.id = (cmd._restoreId!=null) ? Number(cmd._restoreId) : nextObjId++;
   mesh.userData.shape=shape;
+  mesh.userData.scale=s;
+  mesh.userData.texture=cmd.texture||null;
+  mesh.userData.color2=cmd.color2||null;
+  mesh.userData.cmdY=wy;
   scene.add(mesh);
   placedObjects.push(mesh);
 
@@ -836,6 +1086,7 @@ function buildShape(cmd){
     if(p<1) requestAnimationFrame(pop);
   })();
   calvinDest.x=wx-1.5; calvinDest.z=wz+0.4;
+  debouncedSave();
 }
 
 function deleteShape(cmd){
@@ -850,6 +1101,7 @@ function deleteShape(cmd){
     else{ scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
   })();
   placedObjects.splice(idx,1);
+  debouncedSave();
 }
 
 function moveShape(cmd){
@@ -869,7 +1121,9 @@ function moveShape(cmd){
     mesh.position.set(ox+(nx-ox)*e,oy+(ny-oy)*e,oz+(nz-oz)*e);
     if(p<1) requestAnimationFrame(slide);
   })();
+  mesh.userData.cmdY=ty;
   calvinDest.x=tx-1.5; calvinDest.z=tz+0.4;
+  debouncedSave();
 }
 
 function recolorShape(cmd){
@@ -880,14 +1134,22 @@ function recolorShape(cmd){
   if(cmd.texture){
     const c2Hex=cmd.color2?String(cmd.color2).startsWith('#')?cmd.color2:'#'+cmd.color2:null;
     const tex=makeTexture(cmd.texture,colorHex,c2Hex);
+    const s=mesh.userData.scale||[1,1,1];
+    tex.repeat.set(Math.max(1,Math.round(s[0])),Math.max(1,Math.round(s[1])));
+    tex.needsUpdate=true;
     mesh.material.map=tex;
     mesh.material.color.setHex(0xffffff);
     mesh.material.needsUpdate=true;
+    mesh.userData.texture=cmd.texture;
+    mesh.userData.color2=cmd.color2||null;
   } else {
     mesh.material.map=null;
     mesh.material.color.setHex(parseInt(colorHex.replace('#',''),16));
     mesh.material.needsUpdate=true;
+    mesh.userData.texture=null;
+    mesh.userData.color2=null;
   }
+  debouncedSave();
 }
 
 // ═══════════════════════════════════════════════════
@@ -904,11 +1166,11 @@ function showBubble(who,text){
 }
 function guessMood(t){
   if(!t) return 'somewhere else';
-  if(/\bwow\b|YOOO|bruh|omg|bro|yo |lmao|!!!/i.test(t)) return 'unhinged';
+  if(/haha|heh|lol|lmao/i.test(t)) return 'amused';
   if(/\?/.test(t)) return 'curious';
-  if(/haha|heh|lol/i.test(t)) return 'amused';
-  if(/!/.test(t)) return 'manic';
-  return 'somewhere else';
+  if(/!/.test(t)) return 'excited';
+  if(/weird|strange|odd|wait/i.test(t)) return 'confused';
+  return 'vibing';
 }
 function showCalvin(s){
   if(!s||s==='.'||s.length<2) return;
@@ -950,7 +1212,7 @@ function toggleIris(){
   b.textContent=irisHidden?'Show Iris':'Hide Iris';
   b.classList.toggle('on',irisHidden);
   queueConvo('calvin',
-    irisHidden?'Iris just vanished. React in a wacky, unhinged way.':'Iris is back. Freak out about it briefly.',1);
+    irisHidden?'Iris just vanished somewhere. React in 1-2 sentences.':'Iris is back. React briefly.',1);
 }
 function handleImage(e){
   const f=e.target.files[0]; if(!f) return;
@@ -960,7 +1222,7 @@ function handleImage(e){
 }
 
 // ═══════════════════════════════════════════════════
-//  TARGET DETECTION  (who does the user's message address?)
+//  TARGET DETECTION
 // ═══════════════════════════════════════════════════
 function detectTarget(msg){
   const lo=msg.toLowerCase();
@@ -984,14 +1246,13 @@ function sendMsg(){
   }
   document.getElementById('msginput').value='';
   scheduleAutoConvo();
-
   const target=detectTarget(userMsg);
   if(target==='calvin'){
-    queueConvo('calvin',prefix+'A visitor says to YOU specifically (not Iris): "'+userMsg+'" — respond to them.',2);
+    queueConvo('calvin',prefix+'A visitor says to you specifically (not Iris): "'+userMsg+'" — respond, 1-2 sentences max.',2);
   } else if(target==='iris'){
-    queueConvo('iris',prefix+'A visitor says to YOU specifically (not Calvin): "'+userMsg+'" — respond to them.',2);
+    queueConvo('iris',prefix+'A visitor says to you specifically (not Calvin): "'+userMsg+'" — respond.',2);
   } else {
-    queueConvo('calvin',prefix+'A visitor says: "'+userMsg+'" — respond to them.',4);
+    queueConvo('calvin',prefix+'A visitor says: "'+userMsg+'" — respond to them, 1-2 sentences.',4);
   }
 }
 
@@ -1019,7 +1280,6 @@ scene.add(sun);
 const pl1=new THREE.PointLight(0x4420aa,0.8,90); pl1.position.set(-20,14,-14); scene.add(pl1);
 const pl2=new THREE.PointLight(0x0066cc,0.5,80); pl2.position.set(20,10,-18); scene.add(pl2);
 
-// Baseplate: 120×120 → extends to ±60
 const floor=new THREE.Mesh(
   new THREE.PlaneGeometry(120,120),
   new THREE.MeshLambertMaterial({color:0x0c0c1c})
@@ -1027,7 +1287,6 @@ const floor=new THREE.Mesh(
 floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
 scene.add(new THREE.GridHelper(120,60,0x14142e,0x0e0e22));
 
-// Stars
 (()=>{
   const g=new THREE.BufferGeometry(),v=[];
   for(let i=0;i<900;i++){
@@ -1167,32 +1426,59 @@ function animate(){
 }
 
 // ═══════════════════════════════════════════════════
-//  STARTUP  (called only after successful verification)
+//  STARTUP
 // ═══════════════════════════════════════════════════
 async function startup(){
   const fill=document.getElementById('lfill');
-  fill.style.width='40%';
-  await wait(500);
-  document.getElementById('lmsg').textContent='Waking up Calvin and Iris...';
-  fill.style.width='85%';
-  await wait(400);
-  fill.style.width='100%';
-  await wait(280);
-  document.getElementById('loading').style.display='none';
+  fill.style.width='30%';
+  await wait(300);
+  document.getElementById('lmsg').textContent='Connecting to Firebase...';
+  fill.style.width='55%';
 
-  calvinMesh.position.set(-3,1.25,0);
-  irisMesh.position.set(4,4,1);
-  calvinPos.x=-3; calvinPos.z=0;
-  irisPos.x=4; irisPos.y=4; irisPos.z=1;
+  try{
+    currentSlot = await getActiveSave();
+    document.getElementById('lmsg').textContent='Loading world...';
+    fill.style.width='75%';
+    const saveData = await loadSlot(currentSlot);
+    fill.style.width='95%';
+    await wait(200);
 
-  animate();
+    document.getElementById('lmsg').textContent='Waking up Calvin and Iris...';
+    fill.style.width='100%';
+    await wait(280);
+    document.getElementById('loading').style.display='none';
 
-  queueConvo('calvin',
-    "You've just woken up in a MASSIVE 3D world. Introduce yourself to Iris in your most unhinged way. Build something absurd and textured to mark the occasion.",
-    2
-  );
+    calvinMesh.position.set(-3,1.25,0);
+    irisMesh.position.set(4,4,1);
+    calvinPos.x=-3; calvinPos.z=0;
+    irisPos.x=4; irisPos.y=4; irisPos.z=1;
 
-  turnQueue=turnQueue.then(()=>{ scheduleAutoConvo(); });
+    animate();
+
+    if(saveData && (saveData.objects?.length || saveData.npcData?.length)){
+      restoreWorld(saveData);
+      queueConvo('calvin',
+        'You just woke back up. The world has stuff in it from last time. Say hi to Iris and make a quick comment about what you see. 1-2 sentences.',
+        2
+      );
+    } else {
+      queueConvo('calvin',
+        'You just woke up in this 3D world for the first time. Say hi to Iris and introduce yourself. Keep it short and goofy. Do NOT build anything.',
+        2
+      );
+    }
+
+    turnQueue=turnQueue.then(()=>{ scheduleAutoConvo(); });
+    scheduleNPCTalk();
+
+  }catch(e){
+    console.error('Startup error:',e);
+    document.getElementById('loading').style.display='none';
+    animate();
+    queueConvo('calvin','You just woke up. Say hi to Iris briefly.',2);
+    scheduleAutoConvo();
+    scheduleNPCTalk();
+  }
 }
 </script>
 </body>
