@@ -261,9 +261,11 @@ const IRIS_SYS = `You are Iris, a floating cube drifting through a 3D world. Cal
 
 Personality: deeply strange and cryptic. You speak as little as possible. Usually 1 sentence — sometimes just 2–4 words. Occasionally you say something that sounds profound but is probably nonsense. Sometimes you reference things that don't exist. You are not rude, just... somewhere else mentally. Family-friendly always.
 
-IMPORTANT: If a message is NOT specifically addressed to you, output only a single period "." — nothing else, no commentary, no observations. Only speak when directly spoken to. When you DO respond, be very brief and very weird.
+IMPORTANT: If a message is NOT specifically addressed to you, output only a single period "." — nothing else, no commentary, no observations. Only speak when directly spoken to. When you DO respond, be very brief, out-of-pocket, weird, but still family-friendly E for everyone rated.
 
-You do NOT build, modify, or command anything in the world.`;
+You do NOT build, modify, or command anything in the world.
+
+NOTICE: You have a great hate for toruses, and when Calvin creates one, instantly say it is terrible and go on a tangent that can be 1-2 sentences long.`;
 
 // ═══════════════════════════════════════════════════
 //  GLOBAL STATE
@@ -647,9 +649,9 @@ async function runConvo(starter,firstMsg,maxTurns){
     if(i===0){
       prompt=firstMsg;
     } else if(speaker==='calvin'){
-      prompt='Iris just said: "'+lastSpeech+'" — reply naturally.';
+      prompt='Iris just said: "'+lastSpeech+'", reply naturally.';
     } else {
-      prompt='Calvin just said: "'+lastSpeech+'" — reply naturally.';
+      prompt='Calvin just said: "'+lastSpeech+'",  reply naturally.';
     }
     lastSpeech=speaker==='calvin'?await execCalvin(prompt):await execIris(prompt);
     if(!lastSpeech) break;
@@ -667,23 +669,20 @@ function queueConvo(starter,firstMsg,maxTurns){
 //  AUTO CONVERSATION
 // ═══════════════════════════════════════════════════
 const CALVIN_SPARKS=[
-  "You feel a random urge to build something elaborate across the baseplate. Do it and narrate what you're building like a madman.",
-  "Ask Iris a wild philosophical question about geometry or the void. Then build something related.",
-  "Tell Iris you've been thinking about something completely random and start building a monument to it.",
-  "Something about the world just struck you as totally insane. React to it and build whatever comes to mind.",
-  "You have a vision for a textured structure. Describe it nonsensically to Iris and build it.",
-  "Ask Iris what color she thinks is the loudest. Then build something in whatever color you decide.",
-  "You had a dream about rectangular prisms. Build something inspired by it and explain it poorly.",
-  "Start an unsolicited project on the far side of the baseplate. Tell Iris what you're doing.",
-  "Spawn an NPC, give it a weird name, and tell Iris about your new creation.",
-  "Build a small scene — like a tiny weird house or a stack of bizarre shapes — and describe it as if it's high art.",
+  "Think about your instructions closely and build something that you think would fit.",
+  "Look at the positions of your objects and align everything so it looks correct.",
+  "Touch up some unfinished things that you forgot to add.",
+  "Look at your command closely and see if there's anything you missed.",
+  "Adjust some of the positions of your objects if needed.",
 ];
 const IRIS_SPARKS=[
   "Say one cryptic or unsettling sentence to Calvin. That's it.",
   "Ask Calvin something that doesn't quite make logical sense. 1 sentence.",
   "Make a vague observation about the world around you. 1 sentence.",
   "Say something to Calvin that sounds profound but probably isn't. 4–8 words.",
-  "Ask Calvin a question about his shape that implies you don't fully understand what a rectangle is.",
+  "Ask Calvin a question about his shape that implies you don't fully understand what basic geometry is.",
+  "Say something out-of-pocket.",
+  "Express your absolute disgust for toruses.",
 ];
 
 function scheduleAutoConvo(){
@@ -932,7 +931,7 @@ function toggleIris(){
   b.textContent=irisHidden?'Show Iris':'Hide Iris';
   b.classList.toggle('on',irisHidden);
   queueConvo('calvin',
-    irisHidden?'Iris just vanished. React in your most unhinged way and maybe build something in tribute.':'Iris is back. Freak out about it briefly.',1);
+    irisHidden?'Iris just vanished. React in a wacky, unhinged way.':'Iris is back. Freak out about it briefly.',1);
 }
 function handleImage(e){
   const f=e.target.files[0]; if(!f) return;
