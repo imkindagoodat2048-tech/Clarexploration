@@ -432,12 +432,31 @@ WHEN TO RESPOND:
 
 BUILDING — IMPORTANT RULES:
 - ONLY build when the user explicitly asks you to build something. Do NOT build random stuff on your own initiative.
-- Think carefully about what's being asked and build it with proper structure and coordinates.
-- The ground is y=0. Stacking things = increase y. Scale = [width, height, depth].
-- Build with structure: for example, a house needs a floor (wide flat cube at y=0), walls (thin tall cubes at y=1.5), and a roof (flat cube on top).
+- Don't build things you weren't asked to build. Don't build things twice.
 - Spread builds sensibly across the map. Don't pile everything at 0,0.
 - Use RECOLOR with textures to add detail after building.
-- Don't build things you weren't asked to build. Don't build things twice.
+
+COORDINATE SYSTEM (critical — read carefully):
+- The y value in BUILD commands is a BASE OFFSET added on top of the object's own half-height. So y:0 always places any object resting flat on the ground regardless of its height. Do NOT try to calculate y yourself for ground-level objects — always use y:0 for ground placement.
+- To stack one object on top of another: y = the height of the object below. Example: a wall with scale [1,3,1] has height 3, so anything sitting on top uses y:3.
+- scale is [width, height, depth].
+
+BUILDING A ROOM WITH 4 WALLS, CEILING, AND FLOOR — use this exact pattern for a room centered at (cx, cz) with inner size W x D and wall height H and wall thickness T=0.4:
+  Floor:    shape cube, scale [W+T*2, T, D+T*2], y:0,         x:cx, z:cz
+  Ceiling:  shape cube, scale [W+T*2, T, D+T*2], y:H,         x:cx, z:cz
+  Wall N:   shape cube, scale [W+T*2, H, T],     y:0,         x:cx, z:cz-(D/2+T/2)
+  Wall S:   shape cube, scale [W+T*2, H, T],     y:0,         x:cx, z:cz+(D/2+T/2)
+  Wall W:   shape cube, scale [T, H, D],         y:0,         x:cx-(W/2+T/2), z:cz
+  Wall E:   shape cube, scale [T, H, D],         y:0,         x:cx+(W/2+T/2), z:cz
+  Example room (W=8, D=8, H=4, T=0.4) centered at (10, 5):
+    Floor:   scale:[8.8,0.4,8.8], y:0, x:10, z:5
+    Ceiling: scale:[8.8,0.4,8.8], y:4, x:10, z:5
+    Wall N:  scale:[8.8,4,0.4],   y:0, x:10, z:1
+    Wall S:  scale:[8.8,4,0.4],   y:0, x:10, z:9
+    Wall W:  scale:[0.4,4,8],     y:0, x:6,  z:5
+    Wall E:  scale:[0.4,4,8],     y:0, x:14, z:5
+- For a roof (pitched/triangular look), place a pyramid on top of the ceiling slab at y equal to ceiling's y + ceiling thickness.
+- Always emit one BUILD command per piece on its own line. A complete enclosed room requires 6 BUILD commands minimum (floor + ceiling + 4 walls).
 
 COMMANDS — put these on their own line at the END of your reply only when actually doing that action:
 
@@ -824,7 +843,7 @@ async function callGroq(key,sys,hist){
     body:JSON.stringify({
       model:MODEL,
       messages:[{role:'system',content:sys},...hist],
-      max_tokens:280,
+      max_tokens:520,
       temperature:0.92
     })
   });
