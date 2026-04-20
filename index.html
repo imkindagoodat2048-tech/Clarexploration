@@ -160,6 +160,62 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   color:#666;cursor:pointer;font-size:12px;transition:all 0.15s;
 }
 .save-modal-close:hover{color:#ccc;border-color:rgba(255,255,255,0.2);}
+
+/* ── GUEST MODE ── */
+body.guest-mode #topbar { display: none !important; }
+body.guest-mode #calvin-panel, body.guest-mode #iris-panel { display: none !important; }
+body.guest-mode #calvin-bubble, body.guest-mode #iris-bubble { display: none !important; }
+body.guest-mode .guest-bubble { display: none !important; }
+body.guest-mode #hint { display: none !important; }
+body.guest-mode #save-modal { display: none !important; }
+body.guest-mode #imgbtn, body.guest-mode #imginput, body.guest-mode #imgpreview { display: none !important; }
+
+#guest-hud {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  padding: 10px 14px;
+  background: rgba(6,6,16,0.85); backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  align-items: center; gap: 10px;
+}
+body.guest-mode #guest-hud { display: flex; }
+#guest-name-badge {
+  font-size: 13px; font-weight: 700; color: #aaa; white-space: nowrap;
+}
+#guest-coords {
+  font-size: 11px; color: #444; font-style: italic; margin-left: 4px;
+}
+#crosshair {
+  display: none;
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  pointer-events: none; z-index: 300; color: rgba(255,255,255,0.4);
+  font-size: 20px; line-height: 1;
+}
+body.guest-mode #crosshair { display: block; }
+#pointer-lock-prompt {
+  display: none;
+  position: fixed; inset: 0; z-index: 500; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.7); flex-direction: column; gap: 12px;
+}
+body.guest-mode #pointer-lock-prompt { display: flex; }
+#pointer-lock-prompt.hidden { display: none !important; }
+#pointer-lock-prompt p { color: #ccc; font-size: 14px; text-align: center; max-width: 300px; line-height: 1.6; }
+#pointer-lock-prompt button {
+  padding: 9px 22px; border-radius: 8px; border: none;
+  background: linear-gradient(135deg,#5535b8,#7848e8); color: #fff;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+/* World-space speech labels rendered as HTML overlay */
+#world-labels { position: fixed; inset: 0; pointer-events: none; z-index: 120; }
+.world-label {
+  position: absolute; transform: translate(-50%, -100%);
+  background: rgba(8,8,20,0.92); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; padding: 5px 10px; font-size: 11px; color: #ddd;
+  white-space: nowrap; max-width: 200px; white-space: normal; text-align: center;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.world-label.show { opacity: 1; }
+
 </style>
 </head>
 <body>
@@ -213,11 +269,10 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
 </div>
 
 <div class="bubble" id="calvin-bubble"></div>
-<div class="bubble" id="iris-bubble">
-<div class="bubble guest-bubble" id="zinnx-bubble" style="border-left:2px solid #44cc66;left:14px;bottom:220px;"></div>
-<div class="bubble guest-bubble" id="voonz-bubble" style="border-left:2px solid #ddcc00;right:14px;bottom:220px;"></div>
-<div class="bubble guest-bubble" id="nazzle-bubble" style="border-left:2px solid #3388ff;left:50%;transform:translateX(-50%);bottom:138px;"></div>
-</div>
+<div class="bubble" id="iris-bubble"></div>
+<div class="bubble" id="zinnx-bubble" style="border-left:2px solid #44cc66;left:14px;bottom:220px;"></div>
+<div class="bubble" id="voonz-bubble" style="border-left:2px solid #ddcc00;right:14px;bottom:220px;"></div>
+<div class="bubble" id="nazzle-bubble" style="border-left:2px solid #3388ff;left:50%;transform:translateX(-50%);bottom:138px;"></div>
 <div id="hint">M1 drag: pan &nbsp;|&nbsp; M2 drag: rotate &nbsp;|&nbsp; Scroll: zoom &nbsp;|&nbsp; Click Calvin or Iris to inspect</div>
 
 <!-- SAVE MODAL -->
@@ -229,11 +284,24 @@ body{background:#080812;color:#e8e4f0;font-family:'Segoe UI',system-ui,sans-seri
   </div>
 </div>
 
+
+<div id="guest-hud">
+  <span id="guest-name-badge">●</span>
+  <span id="guest-coords"></span>
+  <span style="margin-left:auto;font-size:11px;color:#444;">WASD move · mouse look · click canvas to lock</span>
+</div>
+<div id="crosshair">+</div>
+<div id="pointer-lock-prompt">
+  <p id="plp-text">Click anywhere to enter first-person mode.<br>Press <kbd>Escape</kbd> to unlock mouse.</p>
+  <button onclick="requestPointerLock()">Click to Play</button>
+</div>
+<div id="world-labels"></div>
+
 <div id="bottom">
   <button id="imgbtn" onclick="document.getElementById('imginput').click()">&#128247; Image</button>
   <input type="file" id="imginput" accept="image/*" onchange="handleImage(event)">
   <img id="imgpreview" src="" alt="">
-  <input type="text" id="msginput" placeholder="Say something to Calvin or Iris..." onkeydown="if(event.key==='Enter')sendMsg()">
+  <input type="text" id="msginput" placeholder="Say something to Calvin or Iris..." onkeydown="if(event.key==='Enter')sendMsg()" onfocus="if(currentUser!=='host' && guestFP.locked){ document.exitPointerLock(); }">
   <button id="sendbtn" onclick="sendMsg()">Send</button>
 </div>
 
@@ -259,12 +327,15 @@ function checkCode(){
   if(user){
     currentUser=user;
     document.getElementById('vcode-overlay').style.display='none';
-    document.getElementById('loading').style.display='flex';
-    // Update placeholder to show guest name
     if(user!=='host'){
-      document.getElementById('msginput').placeholder=
-        'Say something as '+GUEST_NAMES[user]+'...';
+      document.body.classList.add('guest-mode');
+      const badge=document.getElementById('guest-name-badge');
+      const colors={zinnx:'#44ee77',voonz:'#eedd22',nazzle:'#4488ff'};
+      badge.textContent='● '+GUEST_NAMES[user];
+      badge.style.color=colors[user]||'#aaa';
+      document.getElementById('msginput').placeholder='Say something as '+GUEST_NAMES[user]+'...';
     }
+    document.getElementById('loading').style.display='flex';
     startup();
   } else {
     const err=document.getElementById('vcode-err');
@@ -1378,12 +1449,19 @@ function calvinGoto(cmd){
 }
 function setStatus(t){ document.getElementById('statustext').textContent=t; }
 
+function charMeshForId(id){
+  if(id==='calvin') return calvinMesh;
+  if(id==='iris')   return irisMesh;
+  if(guestMeshes[id]) return guestMeshes[id];
+  return null;
+}
 function showBubble(who,text){
   if(muted) return;
   const el=document.getElementById(who+'-bubble');
-  el.textContent=text; el.classList.add('show');
-  clearTimeout(bubTimers[who]);
-  bubTimers[who]=setTimeout(()=>el.classList.remove('show'),7500);
+  if(el){ el.textContent=text; el.classList.add('show'); clearTimeout(bubTimers[who]); bubTimers[who]=setTimeout(()=>el.classList.remove('show'),7500); }
+  // Also show world-space floating label above the character
+  const mesh=charMeshForId(who);
+  if(mesh) showWorldLabel(who, mesh, text);
 }
 function guessMood(t){
   if(!t) return 'somewhere else';
@@ -1468,11 +1546,9 @@ function guestSenderName(){
 function showGuestBubble(guestId, text){
   if(muted) return;
   const el=document.getElementById(guestId+'-bubble');
-  if(!el) return;
-  el.textContent=GUEST_NAMES[guestId]+': '+text;
-  el.classList.add('show');
-  clearTimeout(bubTimers[guestId]);
-  bubTimers[guestId]=setTimeout(()=>el.classList.remove('show'),7500);
+  if(el){ el.textContent=GUEST_NAMES[guestId]+': '+text; el.classList.add('show'); clearTimeout(bubTimers[guestId]); bubTimers[guestId]=setTimeout(()=>el.classList.remove('show'),7500); }
+  const mesh=guestMeshes[guestId];
+  if(mesh) showWorldLabel(guestId, mesh, GUEST_NAMES[guestId]+': '+text);
 }
 
 function sendMsg(){
@@ -1679,42 +1755,87 @@ function activateGuest(guestId){
   })();
 }
 
+// Guest position sync via Firebase (throttled)
+let guestSyncTimer=0;
+function syncGuestPositions(dt){
+  if(currentUser==='host') return;
+  guestSyncTimer+=dt;
+  if(guestSyncTimer<0.1) return; // sync 10x/s
+  guestSyncTimer=0;
+  const gp=guestPos[currentUser];
+  if(!gp) return;
+  db.ref('guestPos/'+currentUser).set({x:gp.x,z:gp.z,yaw:guestFP.yaw}).catch(()=>{});
+}
+
+// Host reads guest positions from Firebase
+function listenToGuestPositions(){
+  ['zinnx','voonz','nazzle'].forEach(id=>{
+    db.ref('guestPos/'+id).on('value', snap=>{
+      if(!snap.exists()) return;
+      const d=snap.val();
+      const gp=guestPos[id];
+      if(!gp) return;
+      // Only update positions for guests that aren't us
+      if(currentUser===id) return;
+      gp.x=d.x||0; gp.z=d.z||0;
+      gp.dest.x=gp.x; gp.dest.z=gp.z;
+      gp.angle=d.yaw||0;
+      // Show their mesh if they're present
+      const mesh=guestMeshes[id];
+      if(mesh && !mesh.visible){
+        mesh.visible=true;
+        // Drop-in when we first see them
+        mesh.position.set(gp.x,16,gp.z);
+        const t0=performance.now();
+        const groundY=id==="voonz"?2.5:(id==="nazzle"?1.5:1.1);
+        (function fall(){
+          const p=Math.min(1,(performance.now()-t0)/900);
+          mesh.position.y=16+(groundY-16)*(1-Math.pow(1-p,3));
+          if(p<1) requestAnimationFrame(fall);
+        })();
+      }
+    });
+  });
+  // Also listen for guest chat messages to show world labels
+  db.ref('guestChat').on('value', snap=>{
+    if(!snap.exists()) return;
+    const data=snap.val();
+    for(const id in data){
+      const entry=data[id];
+      if(!entry||!entry.text) continue;
+      const mesh=guestMeshes[id];
+      if(mesh) showWorldLabel(id, mesh, GUEST_NAMES[id]+': '+entry.text);
+      // Also show in sidebar bubble
+      const el=document.getElementById(id+'-bubble');
+      if(el){ el.textContent=GUEST_NAMES[id]+': '+entry.text; el.classList.add('show'); clearTimeout(bubTimers[id]); bubTimers[id]=setTimeout(()=>el.classList.remove('show'),7500); }
+    }
+  });
+}
+
 function updateGuests(dt){
+  syncGuestPositions(dt);
+  const groundYs={zinnx:1.1, voonz:2.5, nazzle:1.5};
   for(const id in guestMeshes){
     const mesh=guestMeshes[id];
     if(!mesh.visible) continue;
     const gp=guestPos[id];
     gp.elapsed+=dt;
+    const gy=groundYs[id]||1.1;
+
+    // Apply smooth position (lerp toward gp.x/z for remote guests)
+    if(id!==currentUser){
+      mesh.position.x+=(gp.x-mesh.position.x)*Math.min(1,dt*10);
+      mesh.position.z+=(gp.z-mesh.position.z)*Math.min(1,dt*10);
+    } else {
+      mesh.position.x=gp.x;
+      mesh.position.z=gp.z;
+    }
 
     if(id==='voonz'){
-      // Float and bob, no ground movement needed
-      gp.y=2.5+Math.sin(gp.elapsed*1.1)*0.4;
-      mesh.position.y=gp.y;
-      mesh.rotation.y+=dt*0.4;
-    } else if(id==='nazzle'){
-      // Waddle on legs
-      const dx=gp.dest.x-gp.x, dz=gp.dest.z-gp.z;
-      const dist=Math.sqrt(dx*dx+dz*dz);
-      if(dist>0.1){
-        const sp=1.8*dt;
-        gp.x+=dx/dist*Math.min(sp,dist);
-        gp.z+=dz/dist*Math.min(sp,dist);
-        gp.angle=Math.atan2(dx,dz);
-      }
-      mesh.position.set(gp.x,1.5+Math.abs(Math.sin(gp.elapsed*3))*0.06,gp.z);
+      mesh.position.y=gy+Math.sin(gp.elapsed*1.1)*0.4;
       mesh.rotation.y=gp.angle;
-    } else if(id==='zinnx'){
-      // Walk like Calvin
-      const dx=gp.dest.x-gp.x, dz=gp.dest.z-gp.z;
-      const dist=Math.sqrt(dx*dx+dz*dz);
-      if(dist>0.1){
-        const sp=2.5*dt;
-        gp.x+=dx/dist*Math.min(sp,dist);
-        gp.z+=dz/dist*Math.min(sp,dist);
-        gp.angle=Math.atan2(dx,dz);
-      }
-      const moving=dist>0.1;
-      mesh.position.set(gp.x,1.1+(moving?Math.abs(Math.sin(gp.elapsed*8))*0.07:Math.sin(gp.elapsed*1.2)*0.03),gp.z);
+    } else {
+      mesh.position.y=gy;
       mesh.rotation.y=gp.angle;
     }
   }
@@ -1725,15 +1846,46 @@ const calvinPos={x:-3,y:0,z:0}, calvinDest={x:-3,z:0};
 let calvinAngle=0;
 const irisPos={x:4,y:4,z:1};
 
-canvas.addEventListener('mousedown',e=>{mouse.down=true;mouse.btn=e.button;mouse.lx=e.clientX;mouse.ly=e.clientY;mouseMoved=false;});
+// ── GUEST FIRST-PERSON STATE ─────────────────────────────────────────
+const guestFP = {
+  yaw: 0,    // horizontal look angle (radians)
+  pitch: 0,  // vertical look angle (radians)
+  locked: false,
+  keys: {w:false,a:false,s:false,d:false}
+};
+const GUEST_SPEED = 7;
+const GUEST_EYE_HEIGHTS = { zinnx:1.6, voonz:0.0, nazzle:2.0 }; // relative to mesh origin
+
+function requestPointerLock(){
+  canvas.requestPointerLock();
+}
+document.addEventListener('pointerlockchange',()=>{
+  guestFP.locked = (document.pointerLockElement===canvas);
+  const prompt=document.getElementById('pointer-lock-prompt');
+  if(guestFP.locked){ prompt.classList.add('hidden'); }
+  else { if(currentUser!=='host') prompt.classList.remove('hidden'); }
+});
+
+// ── HOST: orbit controls ─────────────────────────────────────────────
+canvas.addEventListener('mousedown',e=>{
+  if(currentUser!=='host') return;
+  mouse.down=true; mouse.btn=e.button; mouse.lx=e.clientX; mouse.ly=e.clientY; mouseMoved=false;
+});
 canvas.addEventListener('mousemove',e=>{
-  if(!mouse.down)return; mouseMoved=true;
-  const dx=e.clientX-mouse.lx, dy=e.clientY-mouse.ly;
-  if(mouse.btn===2){cam.theta-=dx*0.006;cam.phi=Math.max(0.06,Math.min(1.4,cam.phi-dy*0.005));}
-  else if(mouse.btn===0){cam.px-=dx*0.05;cam.py=Math.max(-4,Math.min(22,cam.py+dy*0.05));}
-  mouse.lx=e.clientX; mouse.ly=e.clientY;
+  if(currentUser==='host'){
+    if(!mouse.down) return; mouseMoved=true;
+    const dx=e.clientX-mouse.lx, dy=e.clientY-mouse.ly;
+    if(mouse.btn===2){cam.theta-=dx*0.006; cam.phi=Math.max(0.06,Math.min(1.4,cam.phi-dy*0.005));}
+    else if(mouse.btn===0){cam.px-=dx*0.05; cam.py=Math.max(-4,Math.min(22,cam.py+dy*0.05));}
+    mouse.lx=e.clientX; mouse.ly=e.clientY;
+  } else if(guestFP.locked){
+    // Guest mouse-look
+    guestFP.yaw   -= e.movementX * 0.002;
+    guestFP.pitch  = Math.max(-1.2, Math.min(1.2, guestFP.pitch - e.movementY * 0.002));
+  }
 });
 canvas.addEventListener('mouseup',e=>{
+  if(currentUser!=='host'){ return; }
   if(!mouseMoved&&e.button===0){
     const rect=canvas.getBoundingClientRect();
     const rc=new THREE.Raycaster();
@@ -1751,8 +1903,35 @@ canvas.addEventListener('mouseup',e=>{
   }
   mouse.down=false;
 });
+canvas.addEventListener('click',e=>{
+  if(currentUser!=='host' && !guestFP.locked) requestPointerLock();
+});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('wheel',e=>{cam.dist=Math.max(5,Math.min(130,cam.dist+e.deltaY*0.07));},{passive:true});
+canvas.addEventListener('wheel',e=>{
+  if(currentUser!=='host') return;
+  cam.dist=Math.max(5,Math.min(130,cam.dist+e.deltaY*0.07));
+},{passive:true});
+
+// WASD for guests
+window.addEventListener('keydown',e=>{
+  if(currentUser==='host') return;
+  if(document.activeElement===document.getElementById('msginput')) return;
+  switch(e.code){
+    case 'KeyW': guestFP.keys.w=true; break;
+    case 'KeyA': guestFP.keys.a=true; break;
+    case 'KeyS': guestFP.keys.s=true; break;
+    case 'KeyD': guestFP.keys.d=true; break;
+  }
+});
+window.addEventListener('keyup',e=>{
+  switch(e.code){
+    case 'KeyW': guestFP.keys.w=false; break;
+    case 'KeyA': guestFP.keys.a=false; break;
+    case 'KeyS': guestFP.keys.s=false; break;
+    case 'KeyD': guestFP.keys.d=false; break;
+  }
+});
+
 function resize(){
   renderer.setSize(window.innerWidth,window.innerHeight);
   mainCam.aspect=window.innerWidth/window.innerHeight;
@@ -1760,23 +1939,55 @@ function resize(){
 }
 window.addEventListener('resize',resize); resize();
 
+// ── WORLD-SPACE LABELS ───────────────────────────────────────────────
+const worldLabelData={}; // id -> {mesh, el, timer}
+function showWorldLabel(id, mesh, text){
+  if(!worldLabelData[id]){
+    const el=document.createElement('div');
+    el.className='world-label';
+    document.getElementById('world-labels').appendChild(el);
+    worldLabelData[id]={mesh,el,timer:null};
+  }
+  const wd=worldLabelData[id];
+  wd.mesh=mesh;
+  wd.el.textContent=text;
+  wd.el.classList.add('show');
+  clearTimeout(wd.timer);
+  wd.timer=setTimeout(()=>wd.el.classList.remove('show'),6000);
+}
+function updateWorldLabels(){
+  for(const id in worldLabelData){
+    const {mesh,el}=worldLabelData[id];
+    if(!mesh||!mesh.visible){ el.style.display='none'; continue; }
+    el.style.display='';
+    // Project 3D position to screen
+    const pos=new THREE.Vector3();
+    mesh.getWorldPosition(pos);
+    pos.y+=2.5; // above head
+    pos.project(mainCam);
+    if(pos.z>1){ el.style.display='none'; continue; }
+    const sw=window.innerWidth, sh=window.innerHeight;
+    el.style.left=((pos.x+1)/2*sw)+'px';
+    el.style.top=((-pos.y+1)/2*sh)+'px';
+  }
+}
+
 // ═══════════════════════════════════════════════════
 //  ANIMATION LOOP
 // ═══════════════════════════════════════════════════
 let lastTime=performance.now();
+// Guest first-person camera (not attached to mesh, positioned manually each frame)
+const guestCam=new THREE.PerspectiveCamera(80,1,0.05,500);
+
 function animate(){
   requestAnimationFrame(animate);
   const now=performance.now(), dt=Math.min((now-lastTime)/1000,0.05);
   lastTime=now;
+
   if(!paused){
     elapsed+=dt;
-    mainCam.position.set(
-      cam.px+cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),
-      cam.py+cam.dist*Math.sin(cam.phi),
-      cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi)
-    );
-    mainCam.lookAt(cam.px,Math.max(0,cam.py-3),0);
 
+    // ── Calvin AI movement ──────────────────────────────────────
     const cdx=calvinDest.x-calvinPos.x, cdz=calvinDest.z-calvinPos.z;
     const cdist=Math.sqrt(cdx*cdx+cdz*cdz);
     if(cdist>0.04){
@@ -1791,6 +2002,7 @@ function animate(){
     calvinMesh.rotation.y=calvinAngle;
     calvinMesh.rotation.z=moving?Math.sin(elapsed*8)*0.06:Math.sin(elapsed*0.8)*0.015;
 
+    // ── Iris orbit ──────────────────────────────────────────────
     const orbitR=5+Math.sin(elapsed*0.22)*1.8;
     irisPos.x+=(calvinPos.x+Math.sin(elapsed*0.38)*orbitR-irisPos.x)*Math.min(1,dt*1.2);
     irisPos.z+=(calvinPos.z+Math.cos(elapsed*0.38)*orbitR-irisPos.z)*Math.min(1,dt*1.2);
@@ -1805,13 +2017,82 @@ function animate(){
 
     updateNPCs(dt);
     updatePhysics(dt);
-    updateGuests(dt);
+    updateGuests(dt); // also calls syncGuestPositions internally
+
+    // ── Guest first-person WASD movement ────────────────────────
+    if(currentUser!=='host' && guestFP.locked){
+      const gp=guestPos[currentUser];
+      const gm=guestMeshes[currentUser];
+      if(gp && gm){
+        const sinY=Math.sin(guestFP.yaw), cosY=Math.cos(guestFP.yaw);
+        let mx=0, mz=0;
+        if(guestFP.keys.w){ mx+=sinY; mz+=cosY; }
+        if(guestFP.keys.s){ mx-=sinY; mz-=cosY; }
+        if(guestFP.keys.a){ mx-=cosY; mz+=sinY; }
+        if(guestFP.keys.d){ mx+=cosY; mz-=sinY; }
+        const mlen=Math.sqrt(mx*mx+mz*mz);
+        if(mlen>0){
+          gp.x=Math.max(-57,Math.min(57, gp.x + mx/mlen*GUEST_SPEED*dt));
+          gp.z=Math.max(-57,Math.min(57, gp.z + mz/mlen*GUEST_SPEED*dt));
+          gp.dest.x=gp.x; gp.dest.z=gp.z;
+          gp.angle=Math.atan2(mx,mz);
+        }
+        // Update coords display
+        document.getElementById('guest-coords').textContent=
+          'x:'+gp.x.toFixed(1)+' z:'+gp.z.toFixed(1);
+      }
+    }
+
+    // ── Camera selection ─────────────────────────────────────────
+    if(currentUser==='host'){
+      // Editor orbit cam
+      mainCam.position.set(
+        cam.px+cam.dist*Math.sin(cam.theta)*Math.cos(cam.phi),
+        cam.py+cam.dist*Math.sin(cam.phi),
+        cam.dist*Math.cos(cam.theta)*Math.cos(cam.phi)
+      );
+      mainCam.lookAt(cam.px,Math.max(0,cam.py-3),0);
+    } else {
+      // First-person: position camera inside guest mesh, looking in yaw/pitch direction
+      const gp=guestPos[currentUser];
+      const gm=guestMeshes[currentUser];
+      if(gp && gm){
+        const eyeH=GUEST_EYE_HEIGHTS[currentUser]||1.4;
+        const ex=gp.x, ey=gm.position.y+eyeH, ez=gp.z;
+        guestCam.position.set(ex,ey,ez);
+        // Look direction from yaw+pitch
+        const cosP=Math.cos(guestFP.pitch), sinP=Math.sin(guestFP.pitch);
+        const cosY=Math.cos(guestFP.yaw),   sinY=Math.sin(guestFP.yaw);
+        guestCam.lookAt(ex+sinY*cosP*100, ey+sinP*100, ez+cosY*cosP*100);
+        guestCam.aspect=window.innerWidth/window.innerHeight;
+        guestCam.updateProjectionMatrix();
+
+        // Hide the guest's own mesh so we don't see inside it
+        gm.visible=false;
+        // Temporarily hide for render, then restore
+      }
+    }
   }
+
+  // ── Render ───────────────────────────────────────────────────
+  const activeCam = currentUser==='host' ? mainCam : guestCam;
   renderer.setViewport(0,0,window.innerWidth,window.innerHeight);
   renderer.setScissorTest(false);
-  renderer.render(scene,mainCam);
-  calvinMR.render(scene,calvinPOV);
-  irisMR.render(scene,irisPOV);
+  renderer.render(scene,activeCam);
+
+  // Restore guest mesh visibility after main render (so other views see it)
+  if(currentUser!=='host'){
+    const gm=guestMeshes[currentUser];
+    if(gm) gm.visible=true;
+  }
+
+  // Mini-cams (host only — they have those canvases)
+  if(currentUser==='host'){
+    calvinMR.render(scene,calvinPOV);
+    irisMR.render(scene,irisPOV);
+  }
+
+  updateWorldLabels();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1847,6 +2128,9 @@ async function startup(){
     // Activate guest mesh if a guest is logged in
     if(currentUser!=='host') activateGuest(currentUser);
 
+    // Listen for all guest positions (everyone)
+    listenToGuestPositions();
+
     if(saveData && (saveData.objects?.length || saveData.npcData?.length)){
       restoreWorld(saveData);
       const guestArrival=currentUser!=='host'
@@ -1874,6 +2158,7 @@ async function startup(){
     document.getElementById('loading').style.display='none';
     animate();
     if(currentUser!=='host') activateGuest(currentUser);
+    listenToGuestPositions();
     queueConvo('calvin','You just woke up. Say hi to Iris briefly.',2);
     scheduleAutoConvo();
     scheduleNPCTalk();
