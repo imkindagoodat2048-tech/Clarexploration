@@ -560,23 +560,17 @@ async function callClaude(systemPrompt, messages, maxTokens=300){
     generationConfig: { maxOutputTokens: maxTokens, temperature: 0.9 }
   };
 
-let res, attempts = 0;
-while(attempts < 4){
-  res = await fetch(GEMINI_URL, {
+  const res = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if(res.status === 429){
-    attempts++;
-    await new Promise(r => setTimeout(r, 2000 * attempts)); // 2s, 4s, 6s, 8s backoff
-    continue;
+  if(!res.ok){
+    const errText = await res.text().catch(()=>'');
+    throw new Error('Gemini API HTTP '+res.status+' '+errText);
   }
-  break;
-}
-if(!res.ok){
-  const errText = await res.text().catch(()=>'');
-  throw new Error('Gemini API HTTP '+res.status+' '+errText);
+  const d = await res.json();
+  return (d.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
 }
 
 // Convert sharedHist for a given speaker POV
@@ -700,7 +694,7 @@ GUESTS IN YOUR WORLD
 Three guests can drop into your world. You know them:
 - Zinnx: green triangular prism, two misaligned eyes. Chaotic energy. You find them entertaining.
 - Voonz: yellow floating sphere with one eye. Eerily calm. You can never tell what they're thinking.
-- Nazzle: a blue torus on two legs. Iris has a deep personal vendetta against Nazzle specifically — way beyond her general torus hatred. You find the whole drama hilarious.
+- Nazzle: a blue torus on two legs. Iris hates Nazzle for the most straightforward reason possible — Nazzle is a torus. You find it hilarious that Iris acts like this is some deep personal vendetta when really it's just torus math.
 When a guest speaks, respond like they're physically in the world with you.`;
 
 const IRIS_SYS = `You are Iris, a floating cube drifting around Calvin in a 3D world.
@@ -709,7 +703,7 @@ PERSONALITY: Chill. Silent most of the time. You float and vibe. You only speak 
 
 YOU HATE TORUSES. Torus placed = immediate horror/disgust, mandatory.
 
-NAZZLE VENDETTA: Nazzle is a guest who IS a torus on legs. Your hatred of Nazzle is deeply personal, beyond your general torus hatred. If Nazzle speaks or is mentioned, react with extra intensity — but keep it 1 sentence. This feud has history you refuse to explain.
+NAZZLE VENDETTA: Nazzle is a torus on legs. You hate all toruses, and Nazzle IS a torus — so your hatred of Nazzle is not mysterious or personal, it is simply the logical conclusion of your torus hatred made flesh (made legs). You do not refuse to explain it. If pressed, you will say exactly why: Nazzle is a torus. That IS the reason. React with cold disgust whenever Nazzle speaks or is mentioned.
 
 WHEN TO SPEAK — very strict:
 - Directly addressed by name → respond
@@ -725,7 +719,7 @@ You do NOT build, modify, or command anything.
 GUESTS IN YOUR WORLD:
 - Zinnx: green triangular prism, two misaligned eyes. Chaotic energy.
 - Voonz: yellow floating sphere with one eye. Eerily calm. Something about Voonz unsettles you but you won't say why.
-- Nazzle: a blue torus on legs. Your arch nemesis. The history is personal and will never be explained.`;
+- Nazzle: a blue torus on legs. You hate Nazzle because Nazzle is a torus. That is the whole reason. You don't understand why anyone finds this confusing.`;
 
 // ── GUEST FIRST-PERSON SYSTEM PROMPTS ──────────────────────────
 // These run ONLY when a guest types a message. Guests are first-person characters
@@ -757,7 +751,7 @@ HOW YOU SEE THE WORLD: You'll be given a description of what's near you — othe
 
 THE OTHER CHARACTERS:
 - Calvin: purple rectangular prism. He's the god/owner of this world. Friendly, goofy.
-- Iris: blue floating cube. Calm and mostly silent. She DESPISES Nazzle personally (refuses to say why). Has general torus hatred on top of that.
+- Iris: blue floating cube. Calm and mostly silent. She hates Nazzle because Nazzle is a torus, which she hates. She considers this self-evident.
 - Zinnx: green triangular prism with misaligned eyes. Chaotic.
 - Voonz: yellow sphere with one eye. Eerie calm.
 - Nazzle: blue torus on legs. (This may be you or another guest.)
@@ -863,6 +857,7 @@ async function execGuest(guestId, message){
 //  GLOBAL STATE
 // ═══════════════════════════════════════════════════
 let paused=false, muted=false, irisHidden=false, buildingEnabled=true;
+let _lastCalvinSpeech='';
 let sharedHist=[];
 let pendingImageData=null;
 let mouseMoved=false;
@@ -1288,6 +1283,7 @@ async function execCalvin(userMsg){
     }
     sharedHist.push({speaker:'calvin',content:raw});
     const speech=cleanText(raw);
+    _lastCalvinSpeech=speech;
     showCalvin(speech);
     handleCommands(raw);
     // ── Broadcast to all guests in real-time ──────────────────────
@@ -1298,9 +1294,20 @@ async function execCalvin(userMsg){
   } catch(e){ setStatus(''); console.error('[Calvin]',e); return ''; }
 }
 
+// Iris only speaks as an ironic reaction to Calvin, with a 2-minute cooldown.
+let irisLastSpoke = 0;
+const IRIS_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
+
 async function execIris(userMsg){
   if(paused||irisHidden) return '';
-  if(userMsg.indexOf('visitor says')===-1 && Math.random()<0.80) return '';
+
+  // Mandatory reactions bypass cooldown (torus, Nazzle, direct address)
+  const mandatory = /torus|nazzle/i.test(userMsg) || userMsg.indexOf('visitor says') !== -1;
+  if(!mandatory){
+    const now = Date.now();
+    if(now - irisLastSpoke < IRIS_COOLDOWN_MS) return '';
+  }
+
   setStatus('Iris...');
   sharedHist.push({speaker:'world',content:userMsg});
   if(sharedHist.length>16) sharedHist=sharedHist.slice(-16);
@@ -1308,6 +1315,7 @@ async function execIris(userMsg){
     const raw=await callClaude(IRIS_SYS, histFor('iris'), 100);
     sharedHist.push({speaker:'iris',content:raw});
     if(raw&&raw!=='.'&&raw.length>2){
+      irisLastSpoke = Date.now();
       showIris(raw);
       db.ref('irisReply').set({speech: raw, ts: Date.now()}).catch(()=>{});
     }
@@ -1341,34 +1349,9 @@ function queueConvo(starter,firstMsg,maxTurns){
 }
 
 // ═══════════════════════════════════════════════════
-//  AUTO CONVERSATION
+//  AUTO CONVERSATION — disabled, Iris handles reactions
 // ═══════════════════════════════════════════════════
-const CALVIN_SPARKS=[
-  "Make a quick gag or running joke about the world. 1-2 sentences, stay in character.",
-  "Say something weird and goofy to Iris. No building. 1-2 sentences.",
-  "Notice something odd about your existence as a rectangular prism. 1-2 sentences.",
-  "Invent a new rule for the world. 1 sentence. Commit to it.",
-  "Make a short observation about the current state of things. Maybe a joke.",
-  "Say something cryptic about the world that doesn't fully make sense. Keep it short.",
-];
-const IRIS_SPARKS=[
-  "Say something very short and funny to Calvin. 1 sentence.",
-  "Express your hatred of toruses even though there may not be one. Very short.",
-  "Say something that sounds like a compliment but is confusing. 4-8 words.",
-];
-
-function scheduleAutoConvo(){
-  clearTimeout(autoConvoTimer);
-  autoConvoTimer=setTimeout(()=>{
-    if(!paused){
-      const calvinGoes=Math.random()<0.78;
-      const pool=calvinGoes?CALVIN_SPARKS:IRIS_SPARKS;
-      const msg=pool[Math.floor(Math.random()*pool.length)];
-      queueConvo(calvinGoes?'calvin':'iris',msg,1+Math.floor(Math.random()*2));
-    }
-    scheduleAutoConvo();
-  },(60+Math.random()*30)*1000);
-}
+function scheduleAutoConvo(){ /* no-op: auto-chatter removed */ }
 
 // ═══════════════════════════════════════════════════
 //  COMMAND PARSERS
@@ -1483,7 +1466,7 @@ function handleCommands(raw){
   if(events.length){
     const summary=torusPlaced
       ? 'Calvin just placed a TORUS. React with appropriate horror and disgust.'
-      : 'Calvin just '+events.join(' and ')+'. React briefly if you feel like it.';
+      : 'Calvin just said: "'+(_lastCalvinSpeech||events.join(' and '))+'". Make a short ironic or dry joke riffing on what he said or did. 1 sentence max. Only speak if there\'s actually something funny to say.';
     turnQueue=turnQueue.then(()=>{
       return execIris(summary);
     });
@@ -1799,7 +1782,7 @@ function detectTarget(msg){
 
 function maybeIrisNazzleReaction(senderName){
   if(senderName==='Nazzle'){
-    turnQueue=turnQueue.then(()=>execIris('Nazzle (a torus on legs — your arch-nemesis) just spoke. React briefly with personal animosity. 1 sentence.'));
+    turnQueue=turnQueue.then(()=>execIris('Nazzle (a torus on legs) just spoke. React with torus-based disgust. 1 sentence.'));
   }
 }
 
@@ -1873,7 +1856,7 @@ function sendMsg(){
 
     if(sender==='Nazzle'){
       db.ref('calvinQueue').push({
-        prompt:'Nazzle (a torus on legs — your arch-nemesis) just spoke. React briefly with personal animosity. 1 sentence.',
+        prompt:'Nazzle (a torus on legs) just spoke. React with torus-based disgust. 1 sentence.',
         target:'iris', maxTurns:1, sender:'system', ts: Date.now()+1
       }).catch(()=>{});
     }
