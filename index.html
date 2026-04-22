@@ -661,7 +661,6 @@ NPC_CMD:{"id":"bob","action":"color","color":"#ff0000"}
 NPC_CMD:{"id":"bob","action":"delete"}
 NPC_CMD:{"id":"bob","action":"hide"}
 NPC_CMD:{"id":"bob","action":"show"}
-CALVIN_GOTO:{"x":10,"z":-5,"reason":"checking out the new tower"}
 STATS
 
 Available textures: checkerboard, stripes, vstripes, dots, grid, bricks
@@ -670,7 +669,6 @@ Available shapes: cube, sphere, pyramid, cylinder, rectprism, torus
 STRICT RULES:
 - Every action needs its command or it doesn't happen.
 - Do NOT build unless the user asks.
-- CALVIN_GOTO only on special occasions (investigating something, dramatic entrance, etc), not constantly.
 - STATS: use this when you need to inspect precise positions, scales, or IDs before acting. Output it on its own line as just: STATS — you will instantly receive the full world data and can then respond/build accurately.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1364,7 +1362,6 @@ function parseAllShows(t){    return parseCmd(t,'SHOW').filter(o=>o.id!=null); }
 function parseAllSetCollidable(t){ return parseCmd(t,'SET_COLLIDABLE').filter(o=>o.id!=null); }
 function parseAllDropPhysics(t){  return parseCmd(t,'DROP_PHYSICS').filter(o=>o.shape); }
 function parseAllWorldSet(t){ return parseCmd(t,'WORLD_SET'); }
-function parseAllCalvinGoto(t){ return parseCmd(t,'CALVIN_GOTO').filter(o=>!isNaN(o.x)&&!isNaN(o.z)); }
 
 function mentionsBuilding(t){   return /\b(i(?:'ll| will| am going to| just)?\s+(?:build|place|create|make|add|construct|spawn|put|erect)|let me build|going to build|building a|placing a|creating a)\b/i.test(t); }
 function mentionsDeleting(t){   return /\b(i(?:'ll| will| am going to)?\s+(?:delete|remove|destroy|clear|demolish)|let me delete|going to delete)\b/i.test(t); }
@@ -1385,7 +1382,6 @@ function cleanText(t){
     .replace(/SET_COLLIDABLE:\s*\{[^\n\r]+\}/g,'')
     .replace(/DROP_PHYSICS:\s*\{[^\n\r]+\}/g,'')
     .replace(/WORLD_SET:\s*\{[^\n\r]+\}/g,'')
-    .replace(/CALVIN_GOTO:\s*\{[^\n\r]+\}/g,'')
     .replace(/^\s*STATS\s*$/mg,'')
     .trim();
 }
@@ -1403,7 +1399,7 @@ function handleCommands(raw){
   const collidables   = parseAllSetCollidable(raw);
   const physDrops     = parseAllDropPhysics(raw);
   const worldSets     = parseAllWorldSet(raw);
-  const gotoList      = parseAllCalvinGoto(raw);
+  const gotoList      = [];
 
   builds.forEach(buildShape);
   deletes.forEach(deleteShape);
@@ -1416,7 +1412,6 @@ function handleCommands(raw){
   collidables.forEach(setCollidable);
   physDrops.forEach(dropPhysics);
   worldSets.forEach(applyWorldSet);
-  gotoList.forEach(calvinGoto);
 
   // STATS command — Calvin requested full world data; feed it back to him
   if(/^\s*STATS\s*$/m.test(raw)){
@@ -1676,11 +1671,6 @@ function applyWorldSet(cmd){
   debouncedSave();
 }
 
-function calvinGoto(cmd){
-  const tx=Math.max(-57,Math.min(57,+cmd.x));
-  const tz=Math.max(-57,Math.min(57,+cmd.z));
-  calvinDest.x=tx; calvinDest.z=tz;
-}
 function setStatus(t){ document.getElementById('statustext').textContent=t; }
 
 function charMeshForId(id){
@@ -1743,8 +1733,6 @@ function toggleIris(){
   const b=document.getElementById('hidebtn');
   b.textContent=irisHidden?'Show Iris':'Hide Iris';
   b.classList.toggle('on',irisHidden);
-  queueConvo('calvin',
-    irisHidden?'Iris just vanished somewhere. React in 1-2 sentences.':'Iris is back. React briefly.',1);
 }
 function handleImage(e){
   const f=e.target.files[0]; if(!f) return;
@@ -2331,8 +2319,8 @@ function animate(){
         let mx=0, mz=0;
         if(guestFP.keys.w){ mx+=sinY; mz+=cosY; }
         if(guestFP.keys.s){ mx-=sinY; mz-=cosY; }
-        if(guestFP.keys.a){ mx-=cosY; mz+=sinY; }
-        if(guestFP.keys.d){ mx+=cosY; mz-=sinY; }
+        if(guestFP.keys.a){ mx+=cosY; mz-=sinY; }
+        if(guestFP.keys.d){ mx-=cosY; mz+=sinY; }
         const mlen=Math.sqrt(mx*mx+mz*mz);
         if(mlen>0){
           gp.x=Math.max(-57,Math.min(57, gp.x + mx/mlen*GUEST_SPEED*dt));
@@ -2495,21 +2483,6 @@ async function startup(){
 
     if(saveData && (saveData.objects?.length || saveData.npcData?.length)){
       restoreWorld(saveData);
-      const guestArrival=currentUser!=='host'
-        ? ' Also, '+GUEST_NAMES[currentUser]+' just dropped into the world. React briefly.'
-        : '';
-      queueConvo('calvin',
-        'You just woke back up. The world has stuff in it from last time. Say hi to Iris and make a quick comment about what you see. 1-2 sentences.'+guestArrival,
-        2
-      );
-    } else {
-      const guestIntro=currentUser!=='host'
-        ? ' Also, '+GUEST_NAMES[currentUser]+' just dropped into the world! React to their arrival briefly.'
-        : '';
-      queueConvo('calvin',
-        'You just woke up in this 3D world for the first time. Say hi to Iris and introduce yourself. Keep it short and goofy. Do NOT build anything.'+guestIntro,
-        2
-      );
     }
 
     turnQueue=turnQueue.then(()=>{ scheduleAutoConvo(); });
@@ -2521,7 +2494,6 @@ async function startup(){
     animate();
     if(currentUser!=='host') activateGuest(currentUser);
     listenToGuestPositions();
-    queueConvo('calvin','You just woke up. Say hi to Iris briefly.',2);
     scheduleAutoConvo();
     scheduleNPCTalk();
   }
